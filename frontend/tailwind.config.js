@@ -10,11 +10,7 @@ export default {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
       },
       colors: {
-        background: {
-          DEFAULT: '#090d16',
-          secondary: '#0f172a',
-          card: '#131b2e',
-        },
+        background: '#090d16',
         accent: {
           50: '#f0fdfa',
           100: '#ccfbf1',
