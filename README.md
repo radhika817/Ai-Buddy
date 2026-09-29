@@ -239,16 +239,4 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 👥 Contributors
-
-| Contributor | Role | GitHub |
-|---|---|---|
-| **Radhika** | Project Lead & Full Stack Architecture | [@radhika817](https://github.com/radhika817) |
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
-
 
