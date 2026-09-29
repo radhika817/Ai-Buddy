@@ -10,7 +10,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: 
+  background-image:
     radial-gradient(at 10% 10%, rgba(20, 184, 166, 0.04) 0px, transparent 50%),
     radial-gradient(at 90% 90%, rgba(14, 165, 233, 0.03) 0px, transparent 50%);
 }
@@ -23,6 +23,7 @@ body {
 
 ::-webkit-scrollbar-track {
   background: #090d16;
+
 }
 
 ::-webkit-scrollbar-thumb {
