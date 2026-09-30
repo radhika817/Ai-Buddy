@@ -19,4 +19,8 @@ dist/
 .npm
 
 # Project uploads and temporary files
+/backend/uploads/
+/backend/uploads
 backend/uploads/
+backend/uploads
+uploads/
