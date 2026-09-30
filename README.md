@@ -188,7 +188,7 @@ uvicorn main:app --reload --port 8000
 In a new terminal window:
 ```bash
 cd frontend
-
+  
 # Install Node dependencies
 npm install
 
