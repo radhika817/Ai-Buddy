@@ -1,96 +1,123 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Calendar,
   Clock,
-  Users,
   CheckCircle2,
+  AlertCircle,
   Sparkles,
-  Download,
-  Share2,
+  MessageSquare,
   CheckSquare,
   Bookmark,
-  MessageSquare,
-  Search,
-  Bot
+  Bot,
+  Loader2,
+  FileAudio
 } from 'lucide-react';
-
-const SAMPLE_TRANSCRIPT = [
-  {
-    speaker: 'Radhika',
-    role: 'Lead',
-    time: '00:01:15',
-    text: "Thanks everyone for joining. Today's goal is to finalize the architecture for AI Buddy, specifically deciding between Whisper API vs running it locally, and establishing our PostgreSQL schema.",
-  },
-  {
-    speaker: 'Atharva',
-    role: 'Backend',
-    time: '00:02:42',
-    text: "I looked into Whisper locally on CPU. A 30-minute recording took almost 20 minutes to transcribe and choked our memory. The OpenAI Whisper API is only $0.006 per minute and responds in seconds.",
-  },
-  {
-    speaker: 'Tejas',
-    role: 'Frontend',
-    time: '00:04:10',
-    text: "Agreed. Using the API lets us keep the server lightweight on Render or Neon. I'll make sure the frontend handles asynchronous background processing with friendly polling status.",
-  },
-  {
-    speaker: 'Radhika',
-    role: 'Lead',
-    time: '00:05:30',
-    text: "Decision made: We will start with OpenAI Whisper API for Phase 1. Atharva, please set up the background task worker. Tejas, let's have the dashboard and upload flow ready by Friday.",
-  },
-];
-
-const SAMPLE_ACTION_ITEMS = [
-  {
-    id: 1,
-    task: 'Configure FastAPI background worker for Whisper API integration',
-    owner: 'Atharva',
-    deadline: 'Oct 2, 2026',
-    completed: true,
-  },
-  {
-    id: 2,
-    task: 'Implement drag-and-drop upload frontend with polling status',
-    owner: 'Tejas',
-    deadline: 'Oct 4, 2026',
-    completed: false,
-  },
-  {
-    id: 3,
-    task: 'Connect Neon PostgreSQL database and write initial schema migrations',
-    owner: 'Radhika',
-    deadline: 'Oct 1, 2026',
-    completed: true,
-  },
-];
-
-const SAMPLE_DECISIONS = [
-  {
-    id: 1,
-    decision: 'Use OpenAI Whisper API for STT instead of self-hosted local model for MVP.',
-    timestamp: '00:05:30',
-  },
-  {
-    id: 2,
-    decision: 'Adopt Neon PostgreSQL with pgvector for structured records and future RAG memory.',
-    timestamp: '00:07:15',
-  },
-];
+import api from '../services/api';
 
 export default function MeetingDetail() {
   const { id } = useParams();
-  const [tasks, setTasks] = useState(SAMPLE_ACTION_ITEMS);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [meeting, setMeeting] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const toggleTask = (taskId) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
-    );
+  useEffect(() => {
+    const fetchMeeting = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const res = await api.get(`/meetings/${id}`);
+        setMeeting(res.data);
+      } catch (err) {
+        setError(
+          err.response?.data?.detail ||
+          'Failed to load meeting details. The meeting may not exist or has been deleted.'
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchMeeting();
+    }
+  }, [id]);
+
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
   };
+
+  const renderStatusBadge = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'ready':
+        return (
+          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Ready
+          </span>
+        );
+      case 'failed':
+        return (
+          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/25">
+            <AlertCircle className="w-3.5 h-3.5" />
+            Failed
+          </span>
+        );
+      case 'transcribing':
+      case 'analyzing':
+      case 'uploaded':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/25 capitalize">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            {status || 'Processing'}
+          </span>
+        );
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
+        <Loader2 className="w-8 h-8 animate-spin text-accent-500" />
+        <p className="text-sm">Loading meeting details...</p>
+      </div>
+    );
+  }
+
+  if (error || !meeting) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="p-8 bg-slate-900/60 border border-slate-800 rounded-3xl text-center">
+          <AlertCircle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white">Meeting Not Found</h2>
+          <p className="text-sm text-slate-400 mt-2">{error || 'Could not find the requested meeting.'}</p>
+          <div className="mt-6">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Return to Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -105,23 +132,7 @@ export default function MeetingDetail() {
         </Link>
 
         <div className="flex items-center gap-2.5">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-accent-500/10 text-accent-400 border border-accent-500/20">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Analysis Ready
-          </span>
-          <button
-            type="button"
-            className="p-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl transition-colors text-xs flex items-center gap-1.5"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export</span>
-          </button>
-          <button
-            type="button"
-            className="p-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl transition-colors text-xs flex items-center gap-1.5"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-          </button>
+          {renderStatusBadge(meeting.status)}
         </div>
       </div>
 
@@ -130,29 +141,23 @@ export default function MeetingDetail() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-400 mb-2">
-          <span className="px-2.5 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">
-            Meeting #{id || '1'}
+          <span className="px-2.5 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 font-mono">
+            Meeting #{meeting.id}
           </span>
           <span>•</span>
           <span className="flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5 text-slate-500" />
-            Sep 28, 2026
-          </span>
-          <span>•</span>
-          <span className="flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-slate-500" />
-            45 mins
+            {formatDate(meeting.created_at)}
           </span>
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-          Q3 System Architecture & Database Planning
+          {meeting.title}
         </h1>
 
-        <div className="mt-4 flex items-center gap-2 text-xs text-slate-300">
-          <Users className="w-4 h-4 text-accent-400" />
-          <span className="font-semibold text-white">Participants:</span>
-          <span>Radhika (Lead), Atharva (Backend), Tejas (Frontend)</span>
+        <div className="mt-4 flex items-center gap-2 text-xs text-slate-400 font-mono">
+          <FileAudio className="w-4 h-4 text-accent-400" />
+          <span className="truncate">{meeting.file_path}</span>
         </div>
       </div>
 
@@ -171,88 +176,32 @@ export default function MeetingDetail() {
               </div>
               <h2 className="text-lg font-bold text-white">Executive Summary</h2>
             </div>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              The team evaluated transcription infrastructure options and determined that the OpenAI Whisper API is the most viable path forward for the MVP, eliminating hardware bottlenecks. The database will run on PostgreSQL (Neon) with pgvector to prepare for cross-meeting semantic recall.
-            </p>
-
-            <div className="mt-5 pt-4 border-t border-slate-800/80">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Key Discussion Points
-              </h3>
-              <ul className="space-y-1.5 text-xs text-slate-300">
-                <li className="flex items-start gap-2">
-                  <span className="text-accent-400 mt-0.5">•</span>
-                  <span>Whisper API benchmarked against local CPU execution; API selected for latency and cloud cost efficiency.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-accent-400 mt-0.5">•</span>
-                  <span>Database schema designed with 5 core tables and future pgvector chunks support.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-accent-400 mt-0.5">•</span>
-                  <span>Sprint target set for full Phase 1 MVP completion by next week.</span>
-                </li>
-              </ul>
+            
+            {/* Placeholder state until STT & LLM processing is added */}
+            <div className="p-6 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+              <p className="text-sm font-medium text-slate-300">Processing not started</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Automated transcription and AI summary extraction will be added in the next step.
+              </p>
             </div>
           </motion.div>
 
           {/* Transcript Viewer Card */}
           <div className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-800/80 gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-accent-400" />
-                  Full Transcript
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">Speaker diarized with synchronized timestamps</p>
-              </div>
-
-              <div className="relative w-full sm:w-56">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Filter dialogue..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
-                />
-              </div>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-6">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-accent-400" />
+                Transcript
+              </h2>
             </div>
 
-            {/* Transcript Timeline */}
-            <div className="mt-6 space-y-5">
-              {SAMPLE_TRANSCRIPT.map((entry, index) => (
-                <div key={index} className="flex gap-4 p-3 rounded-xl hover:bg-slate-800/30 transition-colors">
-                  <div className="shrink-0 text-center">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold ${
-                        entry.speaker === 'Radhika'
-                          ? 'bg-accent-500/20 text-accent-300 border border-accent-500/30'
-                          : entry.speaker === 'Atharva'
-                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                          : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                      }`}
-                    >
-                      {entry.speaker[0]}
-                    </div>
-                    <span className="text-[10px] text-slate-500 block mt-1 font-mono">
-                      {entry.time}
-                    </span>
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white">{entry.speaker}</span>
-                      <span className="text-[10px] text-slate-400 px-1.5 py-0.2 rounded bg-slate-800/80">
-                        {entry.role}
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed">
-                      {entry.text}
-                    </p>
-                  </div>
-                </div>
-              ))}
+            {/* Placeholder state until STT is added */}
+            <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+              <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+              <p className="text-sm font-medium text-slate-300">Processing not started</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Speech-to-text transcript segments with timestamps will appear here once audio is transcribed.
+              </p>
             </div>
           </div>
         </div>
@@ -269,47 +218,10 @@ export default function MeetingDetail() {
                 <CheckSquare className="w-4 h-4 text-accent-400" />
                 Action Items
               </h2>
-              <span className="text-xs text-slate-400">
-                {tasks.filter((t) => t.completed).length}/{tasks.length} Done
-              </span>
             </div>
 
-            <div className="space-y-3">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => toggleTask(task.id)}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
-                    task.completed
-                      ? 'bg-slate-950/40 border-slate-800/50 opacity-60'
-                      : 'bg-slate-800/40 border-slate-700/60 hover:border-accent-500/40'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={task.completed}
-                      onChange={() => {}}
-                      className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-accent-500 focus:ring-0 cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <p
-                        className={`text-xs font-medium leading-snug ${
-                          task.completed ? 'line-through text-slate-500' : 'text-slate-200'
-                        }`}
-                      >
-                        {task.task}
-                      </p>
-                      <div className="mt-2 flex items-center gap-2 text-[10px]">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-semibold">
-                          @{task.owner}
-                        </span>
-                        <span className="text-slate-400">Due {task.deadline}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="p-4 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+              <p className="text-xs font-medium text-slate-400">Processing not started</p>
             </div>
           </motion.div>
 
@@ -323,20 +235,8 @@ export default function MeetingDetail() {
               <h2 className="text-base font-bold text-white">Decisions Logged</h2>
             </div>
 
-            <div className="space-y-3">
-              {SAMPLE_DECISIONS.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-3.5 rounded-xl bg-slate-800/30 border border-slate-800/80 hover:border-cyan-500/30 transition-colors"
-                >
-                  <p className="text-xs text-slate-200 font-medium leading-relaxed">
-                    {item.decision}
-                  </p>
-                  <span className="text-[10px] text-cyan-400 font-mono mt-2 block">
-                    Recorded at {item.timestamp}
-                  </span>
-                </div>
-              ))}
+            <div className="p-4 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+              <p className="text-xs font-medium text-slate-400">Processing not started</p>
             </div>
           </motion.div>
 
@@ -347,19 +247,8 @@ export default function MeetingDetail() {
               <h3 className="text-xs font-bold uppercase tracking-wider">Ask AI Buddy</h3>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Ask natural language questions about this meeting or across all previous meetings.
+              Ask natural language questions about this meeting once processing is completed.
             </p>
-            <div className="mt-4 relative">
-              <input
-                type="text"
-                placeholder="What was decided about the API?"
-                disabled
-                className="w-full pl-3 pr-8 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-400 placeholder-slate-600 cursor-not-allowed opacity-80"
-              />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                Phase 3
-              </span>
-            </div>
           </div>
         </div>
       </div>
