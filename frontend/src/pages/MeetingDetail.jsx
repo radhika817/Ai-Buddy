@@ -30,6 +30,7 @@ export default function MeetingDetail() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState('transcript');
   const fetchedTranscriptRef = useRef(false);
 
   const fetchMeeting = async (isInitial = false) => {
@@ -327,10 +328,10 @@ export default function MeetingDetail() {
         </motion.div>
       )}
 
-      {/* FAILED STATE CARD */}
+      {/* FAILED STATE CARD WITH ERROR MESSAGE AND DELETE BUTTON */}
       {isFailed && (
         <div className="mb-8 p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl shadow-xl text-rose-200">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5" />
               <div>
@@ -345,7 +346,7 @@ export default function MeetingDetail() {
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-lg shadow-rose-500/20"
+              className="px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-lg shadow-rose-500/20"
             >
               {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               <span>Delete Meeting</span>
@@ -356,129 +357,170 @@ export default function MeetingDetail() {
 
       {/* Main 2-Column Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Summary & Transcript (2 cols wide) */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Executive Summary Card (Placeholder for Phase 2) */}
-          <motion.div
-            whileHover={{ y: -2 }}
-            className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 rounded-lg bg-accent-500/10 text-accent-400 border border-accent-500/20">
+        {/* Left Column: Tabs for Transcript & Summary (2 cols wide) */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Navigation Tabs when Ready */}
+          {isReady && (
+            <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab('transcript')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
+                  activeTab === 'transcript'
+                    ? 'bg-accent-500/10 text-accent-400 border border-accent-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Transcript</span>
+                {segments.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-300">
+                    {segments.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('summary')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
+                  activeTab === 'summary'
+                    ? 'bg-accent-500/10 text-accent-400 border border-accent-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
                 <Sparkles className="w-4 h-4" />
-              </div>
-              <h2 className="text-lg font-bold text-white">Executive Summary</h2>
+                <span>Executive Summary</span>
+              </button>
             </div>
+          )}
 
-            <div className="p-6 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
-              <p className="text-sm font-medium text-slate-300">Processing not started</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Automated AI summary extraction will be implemented in the next phase.
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Transcript Viewer Card */}
-          <div className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-3 mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-accent-400" />
-                  Transcript
-                  {segments.length > 0 && (
-                    <span className="text-xs font-normal text-slate-400 ml-1">
-                      ({segments.length} segments)
-                    </span>
-                  )}
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Generated with local Faster-Whisper model
-                </p>
-              </div>
-
-              {isReady && segments.length > 0 && (
-                <div className="relative w-full sm:w-60">
-                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search in transcript..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
-                  />
+          {/* TRANSCRIPT TAB CONTENT */}
+          {(activeTab === 'transcript' || isProcessing || isFailed) && (
+            <div className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-3 mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-accent-400" />
+                    Transcript
+                    {segments.length > 0 && (
+                      <span className="text-xs font-normal text-slate-400 ml-1">
+                        ({segments.length} segments)
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Generated with local Faster-Whisper model
+                  </p>
                 </div>
-              )}
-            </div>
 
-            {/* In-progress state */}
-            {isProcessing && (
-              <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-accent-500 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-300">Transcription in progress</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Audio is being converted and transcribed. Segments will appear automatically when ready.
-                </p>
-              </div>
-            )}
-
-            {/* Failed state */}
-            {isFailed && (
-              <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
-                <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-300">Transcription failed</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Please review the error details above or delete and retry uploading.
-                </p>
-              </div>
-            )}
-
-            {/* Ready state with Transcript Segments */}
-            {isReady && (
-              <>
-                {segmentsLoading ? (
-                  <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
-                    <Loader2 className="w-6 h-6 animate-spin text-accent-500" />
-                    <p className="text-xs">Loading transcript segments...</p>
-                  </div>
-                ) : segments.length === 0 ? (
-                  <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
-                    <Volume2 className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-slate-300">No speech detected</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Whisper processed the audio but did not detect verbal conversation.
-                    </p>
-                  </div>
-                ) : filteredSegments.length === 0 ? (
-                  <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
-                    <p className="text-sm font-medium text-slate-300">No matching dialogue found</p>
-                    <p className="text-xs text-slate-500 mt-1">Try a different search term.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
-                    {filteredSegments.map((seg) => (
-                      <div
-                        key={seg.id}
-                        className="p-3.5 rounded-xl bg-slate-950/50 hover:bg-slate-950/80 border border-slate-800/80 transition-colors flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4"
-                      >
-                        <div className="shrink-0 flex items-center gap-1.5 text-accent-400 font-mono text-xs bg-accent-500/10 px-2 py-0.5 rounded-md border border-accent-500/20 self-start">
-                          <Clock className="w-3 h-3" />
-                          <span>{formatSeconds(seg.start_time)}</span>
-                          <span className="text-slate-500">-</span>
-                          <span>{formatSeconds(seg.end_time)}</span>
-                        </div>
-
-                        <div className="flex-1">
-                          <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-                            {seg.text}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                {isReady && segments.length > 0 && (
+                  <div className="relative w-full sm:w-60">
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search dialogue..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
+                    />
                   </div>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+
+              {/* In-progress state */}
+              {isProcessing && (
+                <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-accent-500 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-slate-300">Transcription in progress</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Audio is being converted and transcribed. Segments will appear automatically when ready.
+                  </p>
+                </div>
+              )}
+
+              {/* Failed state */}
+              {isFailed && (
+                <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                  <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-slate-300">Transcription failed</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Please review the error details above or delete and retry uploading.
+                  </p>
+                </div>
+              )}
+
+              {/* Ready state with Transcript Segments */}
+              {isReady && (
+                <>
+                  {segmentsLoading ? (
+                    <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
+                      <Loader2 className="w-6 h-6 animate-spin text-accent-500" />
+                      <p className="text-xs">Loading transcript segments...</p>
+                    </div>
+                  ) : segments.length === 0 ? (
+                    <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                      <Volume2 className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-slate-300">No speech detected</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Whisper processed the audio but did not detect verbal conversation.
+                      </p>
+                    </div>
+                  ) : filteredSegments.length === 0 ? (
+                    <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                      <p className="text-sm font-medium text-slate-300">No matching dialogue found</p>
+                      <p className="text-xs text-slate-500 mt-1">Try a different search term.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5 max-h-[600px] overflow-y-auto pr-1">
+                      {filteredSegments.map((seg) => (
+                        <div
+                          key={seg.id}
+                          className="p-3.5 rounded-xl bg-slate-950/50 hover:bg-slate-950/80 border border-slate-800/80 transition-colors flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4"
+                        >
+                          <div className="shrink-0 flex items-center gap-1.5 text-accent-400 font-mono text-xs bg-accent-500/10 px-2.5 py-1 rounded-lg border border-accent-500/20 self-start">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatSeconds(seg.start_time)}</span>
+                            <span className="text-slate-500">-</span>
+                            <span>{formatSeconds(seg.end_time)}</span>
+                          </div>
+
+                          <div className="flex-1">
+                            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                              {seg.text}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* SUMMARY TAB CONTENT (When activeTab === 'summary') */}
+          {activeTab === 'summary' && isReady && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1.5 rounded-lg bg-accent-500/10 text-accent-400 border border-accent-500/20">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <h2 className="text-lg font-bold text-white">Executive Summary</h2>
+              </div>
+
+              <div className="p-6 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                <p className="text-sm font-medium text-slate-300">Processing not started</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Automated AI summary extraction will be implemented in the next phase.
+                </p>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Right Column: Action Items, Decisions, and AI Chat Assistant */}
