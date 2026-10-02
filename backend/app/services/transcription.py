@@ -8,6 +8,19 @@ from app.models.transcript import TranscriptSegment
 
 logger = logging.getLogger(__name__)
 
+# Compatibility patch for PyAV where metadata_errors keyword argument was removed in newer versions
+try:
+    import av
+    _orig_av_open = av.open
+
+    def _safe_av_open(*args, **kwargs):
+        kwargs.pop("metadata_errors", None)
+        return _orig_av_open(*args, **kwargs)
+
+    av.open = _safe_av_open
+except Exception:
+    pass
+
 # Base directory for resolving file paths
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
