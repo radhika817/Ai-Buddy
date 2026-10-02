@@ -2,14 +2,17 @@ import os
 import uuid
 import logging
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.meeting import Meeting
+from app.models.transcript import TranscriptSegment
 from app.schemas.meeting import MeetingOut
+from app.schemas.transcript import TranscriptSegmentOut
+from app.services.transcription import process_meeting_transcription
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,7 @@ UPLOAD_DIR = os.path.join(BACKEND_DIR, "uploads")
 
 @router.post("", response_model=MeetingOut, status_code=status.HTTP_201_CREATED)
 async def upload_meeting(
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -35,6 +39,7 @@ async def upload_meeting(
     Accepts meeting title and file (multipart/form-data).
     Validates file type (mp3, wav, m4a, mp4, mkv, webm) and max size 100MB.
     Saves file to backend/uploads with a unique filename and creates a meeting record.
+    Queues asynchronous transcription via background task.
     """
     cleaned_title = title.strip()
     if not cleaned_title:
@@ -103,6 +108,9 @@ async def upload_meeting(
     db.commit()
     db.refresh(new_meeting)
 
+    # Start asynchronous background transcription
+    background_tasks.add_task(process_meeting_transcription, new_meeting.id)
+
     return new_meeting
 
 
@@ -145,6 +153,37 @@ def get_meeting(
         )
 
     return meeting
+
+
+@router.get("/{meeting_id}/transcript", response_model=List[TranscriptSegmentOut])
+def get_meeting_transcript(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns all transcript segments for a meeting, ordered by start_time.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    if meeting.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this meeting's transcript.",
+        )
+
+    segments = (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.meeting_id == meeting_id)
+        .order_by(TranscriptSegment.start_time.asc())
+        .all()
+    )
+    return segments
 
 
 @router.delete("/{meeting_id}", status_code=status.HTTP_200_OK)

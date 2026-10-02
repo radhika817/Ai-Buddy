@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -12,6 +12,13 @@ class Meeting(Base):
     title = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     status = Column(String, default="uploaded", nullable=False)  # "uploaded", "transcribing", "analyzing", "ready", "failed"
+    error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="meetings")
+    transcript_segments = relationship(
+        "TranscriptSegment",
+        back_populates="meeting",
+        cascade="all, delete-orphan",
+        order_by="TranscriptSegment.start_time",
+    )
