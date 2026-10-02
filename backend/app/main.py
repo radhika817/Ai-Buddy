@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import Base, engine
 # Import models to ensure they are registered with Base.metadata
 from app.models.user import User  # noqa: F401
 from app.models.meeting import Meeting  # noqa: F401
+from app.models.transcript import TranscriptSegment  # noqa: F401
 from app.api.meetings import router as meetings_router
 
 
@@ -14,6 +16,13 @@ from app.api.meetings import router as meetings_router
 async def lifespan(app: FastAPI):
     # Ensure database tables exist
     Base.metadata.create_all(bind=engine)
+    # Ensure columns exist on existing tables
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS error_message TEXT;"))
+            conn.commit()
+    except Exception as e:
+        print(f"Schema update notice: {e}")
     yield
 
 

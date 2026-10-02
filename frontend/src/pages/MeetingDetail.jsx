@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -13,37 +13,95 @@ import {
   Bookmark,
   Bot,
   Loader2,
-  FileAudio
+  FileAudio,
+  Trash2,
+  Search,
+  Volume2
 } from 'lucide-react';
 import api from '../services/api';
 
 export default function MeetingDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [meeting, setMeeting] = useState(null);
+  const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const fetchedTranscriptRef = useRef(false);
+
+  const fetchMeeting = async (isInitial = false) => {
+    try {
+      if (isInitial) setLoading(true);
+      setError('');
+      const res = await api.get(`/meetings/${id}`);
+      setMeeting(res.data);
+
+      if (res.data.status === 'ready' && !fetchedTranscriptRef.current) {
+        fetchedTranscriptRef.current = true;
+        fetchTranscript();
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+        'Failed to load meeting details. The meeting may not exist or has been deleted.'
+      );
+    } finally {
+      if (isInitial) setLoading(false);
+    }
+  };
+
+  const fetchTranscript = async () => {
+    try {
+      setSegmentsLoading(true);
+      const res = await api.get(`/meetings/${id}/transcript`);
+      setSegments(res.data);
+    } catch (err) {
+      console.error('Failed to load transcript segments:', err);
+    } finally {
+      setSegmentsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchMeeting = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const res = await api.get(`/meetings/${id}`);
-        setMeeting(res.data);
-      } catch (err) {
-        setError(
-          err.response?.data?.detail ||
-          'Failed to load meeting details. The meeting may not exist or has been deleted.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    fetchedTranscriptRef.current = false;
     if (id) {
-      fetchMeeting();
+      fetchMeeting(true);
     }
   }, [id]);
+
+  // Polling every 5 seconds while status is in-progress
+  useEffect(() => {
+    let intervalId = null;
+
+    if (meeting && ['uploaded', 'transcribing', 'analyzing'].includes(meeting.status?.toLowerCase())) {
+      intervalId = setInterval(() => {
+        fetchMeeting(false);
+      }, 5000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [meeting?.status, id]);
+
+  const handleDelete = async () => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${meeting.title}"?`);
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      await api.delete(`/meetings/${id}`);
+      navigate('/');
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to delete meeting.');
+      setDeleting(false);
+    }
+  };
 
   const formatDate = (dateString) => {
     try {
@@ -58,6 +116,13 @@ export default function MeetingDetail() {
     } catch {
       return dateString;
     }
+  };
+
+  const formatSeconds = (totalSeconds) => {
+    if (typeof totalSeconds !== 'number') return '00:00';
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = Math.floor(totalSeconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const renderStatusBadge = (status) => {
@@ -77,17 +142,37 @@ export default function MeetingDetail() {
           </span>
         );
       case 'transcribing':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-accent-500/10 text-accent-400 border border-accent-500/25">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-400 animate-ping" />
+            Transcribing (Whisper)...
+          </span>
+        );
       case 'analyzing':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/25">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            Analyzing...
+          </span>
+        );
       case 'uploaded':
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/25 capitalize">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/25">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            {status || 'Processing'}
+            Uploaded
           </span>
         );
     }
   };
+
+  const isProcessing = ['uploaded', 'transcribing', 'analyzing'].includes(meeting?.status?.toLowerCase());
+  const isFailed = meeting?.status?.toLowerCase() === 'failed';
+  const isReady = meeting?.status?.toLowerCase() === 'ready';
+
+  const filteredSegments = segments.filter((seg) =>
+    seg.text.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -121,7 +206,7 @@ export default function MeetingDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Back button & status bar */}
+      {/* Top back bar and status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <Link
           to="/"
@@ -133,6 +218,20 @@ export default function MeetingDetail() {
 
         <div className="flex items-center gap-2.5">
           {renderStatusBadge(meeting.status)}
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-2 bg-slate-900 border border-slate-800 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 rounded-xl transition-colors text-xs flex items-center gap-1.5"
+            title="Delete meeting"
+          >
+            {deleting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-400" />
+            ) : (
+              <Trash2 className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">Delete</span>
+          </button>
         </div>
       </div>
 
@@ -161,11 +260,105 @@ export default function MeetingDetail() {
         </div>
       </div>
 
+      {/* PROCESSING PROGRESS INDICATOR (Visible when uploaded / transcribing / analyzing) */}
+      {isProcessing && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-6 bg-slate-900/80 border border-accent-500/30 rounded-2xl shadow-xl relative overflow-hidden"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-accent-500/10 text-accent-400 border border-accent-500/20">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  {meeting.status === 'transcribing'
+                    ? 'Transcribing Audio with Whisper...'
+                    : meeting.status === 'analyzing'
+                    ? 'Analyzing Dialogue Segments...'
+                    : 'Processing Audio Upload...'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Running local speech-to-text pipeline in background. Polling every 5 seconds...
+                </p>
+              </div>
+            </div>
+
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-accent-500/10 text-accent-400 border border-accent-500/20 capitalize self-start sm:self-auto">
+              Status: {meeting.status}
+            </span>
+          </div>
+
+          {/* Stepper Bar */}
+          <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-800">
+            <div
+              className={`p-3 rounded-xl border text-center ${
+                meeting.status === 'uploaded'
+                  ? 'border-accent-500/50 bg-accent-500/10 text-accent-300'
+                  : 'border-slate-800 bg-slate-950/40 text-slate-400'
+              }`}
+            >
+              <p className="text-xs font-bold">1. Uploaded</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Audio Saved</p>
+            </div>
+            <div
+              className={`p-3 rounded-xl border text-center ${
+                meeting.status === 'transcribing'
+                  ? 'border-accent-500/50 bg-accent-500/10 text-accent-300'
+                  : 'border-slate-800 bg-slate-950/40 text-slate-400'
+              }`}
+            >
+              <p className="text-xs font-bold">2. Transcribing</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Faster-Whisper</p>
+            </div>
+            <div
+              className={`p-3 rounded-xl border text-center ${
+                meeting.status === 'analyzing'
+                  ? 'border-accent-500/50 bg-accent-500/10 text-accent-300'
+                  : 'border-slate-800 bg-slate-950/40 text-slate-400'
+              }`}
+            >
+              <p className="text-xs font-bold">3. Finalizing</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Marking Ready</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* FAILED STATE CARD */}
+      {isFailed && (
+        <div className="mb-8 p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl shadow-xl text-rose-200">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-base font-bold text-white">Transcription Failed</h3>
+                <p className="text-xs text-rose-300/90 mt-1 leading-relaxed">
+                  {meeting.error_message || 'An error occurred during audio processing or model transcription.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-lg shadow-rose-500/20"
+            >
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              <span>Delete Meeting</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main 2-Column Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Summary & Transcript (2 cols wide) */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Executive Summary Card */}
+          {/* Executive Summary Card (Placeholder for Phase 2) */}
           <motion.div
             whileHover={{ y: -2 }}
             className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl"
@@ -176,33 +369,115 @@ export default function MeetingDetail() {
               </div>
               <h2 className="text-lg font-bold text-white">Executive Summary</h2>
             </div>
-            
-            {/* Placeholder state until STT & LLM processing is added */}
+
             <div className="p-6 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
               <p className="text-sm font-medium text-slate-300">Processing not started</p>
               <p className="text-xs text-slate-500 mt-1">
-                Automated transcription and AI summary extraction will be added in the next step.
+                Automated AI summary extraction will be implemented in the next phase.
               </p>
             </div>
           </motion.div>
 
           {/* Transcript Viewer Card */}
           <div className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-6">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-accent-400" />
-                Transcript
-              </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-3 mb-6">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-accent-400" />
+                  Transcript
+                  {segments.length > 0 && (
+                    <span className="text-xs font-normal text-slate-400 ml-1">
+                      ({segments.length} segments)
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Generated with local Faster-Whisper model
+                </p>
+              </div>
+
+              {isReady && segments.length > 0 && (
+                <div className="relative w-full sm:w-60">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search in transcript..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Placeholder state until STT is added */}
-            <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
-              <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-slate-300">Processing not started</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Speech-to-text transcript segments with timestamps will appear here once audio is transcribed.
-              </p>
-            </div>
+            {/* In-progress state */}
+            {isProcessing && (
+              <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-accent-500 mx-auto mb-2" />
+                <p className="text-sm font-medium text-slate-300">Transcription in progress</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Audio is being converted and transcribed. Segments will appear automatically when ready.
+                </p>
+              </div>
+            )}
+
+            {/* Failed state */}
+            {isFailed && (
+              <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
+                <p className="text-sm font-medium text-slate-300">Transcription failed</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Please review the error details above or delete and retry uploading.
+                </p>
+              </div>
+            )}
+
+            {/* Ready state with Transcript Segments */}
+            {isReady && (
+              <>
+                {segmentsLoading ? (
+                  <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin text-accent-500" />
+                    <p className="text-xs">Loading transcript segments...</p>
+                  </div>
+                ) : segments.length === 0 ? (
+                  <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                    <Volume2 className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm font-medium text-slate-300">No speech detected</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Whisper processed the audio but did not detect verbal conversation.
+                    </p>
+                  </div>
+                ) : filteredSegments.length === 0 ? (
+                  <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                    <p className="text-sm font-medium text-slate-300">No matching dialogue found</p>
+                    <p className="text-xs text-slate-500 mt-1">Try a different search term.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                    {filteredSegments.map((seg) => (
+                      <div
+                        key={seg.id}
+                        className="p-3.5 rounded-xl bg-slate-950/50 hover:bg-slate-950/80 border border-slate-800/80 transition-colors flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4"
+                      >
+                        <div className="shrink-0 flex items-center gap-1.5 text-accent-400 font-mono text-xs bg-accent-500/10 px-2 py-0.5 rounded-md border border-accent-500/20 self-start">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatSeconds(seg.start_time)}</span>
+                          <span className="text-slate-500">-</span>
+                          <span>{formatSeconds(seg.end_time)}</span>
+                        </div>
+
+                        <div className="flex-1">
+                          <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                            {seg.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
