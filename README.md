@@ -192,9 +192,12 @@ cd frontend
 # Install Node dependencies
 npm install
 
+
 # Configure environment variables
 cp .env.example .env
 ```
+
+
 
 Edit `frontend/.env` if using a custom backend port:
 ```ini
@@ -214,6 +217,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 - [x] **Architecture & System Design**
   - [x] End-to-end pipeline design documented in [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md)
+  
   - [x] Database schema & API specifications drafted
 - [x] **Frontend Core UI & Flow**
   - [x] Responsive layout with dark modern theme and Inter typography
