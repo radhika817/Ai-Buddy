@@ -12,6 +12,7 @@ import {
   Filter,
   Loader2,
   AlertCircle,
+
   FileVideo,
   Sparkles
 } from 'lucide-react';
@@ -34,6 +35,7 @@ export default function Dashboard() {
       setError('Could not load meetings from the server. Please check backend connection.');
     } finally {
       setLoading(false);
+
     }
   };
 
