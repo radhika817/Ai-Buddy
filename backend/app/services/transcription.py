@@ -28,15 +28,16 @@ _whisper_model = None
 
 
 def get_ffmpeg_path() -> str:
-    """Finds ffmpeg binary from imageio_ffmpeg or system path."""
+    """Finds ffmpeg binary from system PATH or imageio_ffmpeg."""
+    path = shutil.which("ffmpeg")
+    if path:
+        return path
     try:
         import imageio_ffmpeg
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:
-        path = shutil.which("ffmpeg")
-        if path:
-            return path
-        raise RuntimeError("ffmpeg binary not found. Please install ffmpeg.")
+        pass
+    raise RuntimeError("ffmpeg binary not found. Please install ffmpeg.")
 
 
 def convert_to_wav(input_path: str, output_path: str) -> None:
