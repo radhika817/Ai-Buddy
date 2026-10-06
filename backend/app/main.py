@@ -20,6 +20,8 @@ async def lifespan(app: FastAPI):
     try:
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS error_message TEXT;"))
+            conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS summary TEXT;"))
+            conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS key_points JSON;"))
             conn.commit()
     except Exception as e:
         print(f"Schema update notice: {e}")
