@@ -134,11 +134,30 @@ def process_meeting_transcription(meeting_id: int) -> None:
         # 5. Update meeting status to 'analyzing'
         meeting.status = "analyzing"
         db.commit()
+        logger.info(f"Meeting {meeting_id} status updated to 'analyzing'. Generating AI summary...")
 
-        # For now, after transcription, just set status to 'ready'
+        # Retrieve saved transcript segments and combine into plain text
+        segments = (
+            db.query(TranscriptSegment)
+            .filter(TranscriptSegment.meeting_id == meeting.id)
+            .order_by(TranscriptSegment.start_time.asc())
+            .all()
+        )
+        plain_text = "\n".join(seg.text.strip() for seg in segments if seg.text and seg.text.strip())
+
+        if plain_text.strip():
+            from app.services.summarization import generate_meeting_summary
+            summary_result = generate_meeting_summary(plain_text)
+            meeting.summary = summary_result.get("summary")
+            meeting.key_points = summary_result.get("key_points")
+        else:
+            meeting.summary = "No spoken dialogue was detected in the recording to summarize."
+            meeting.key_points = ["No dialogue detected in audio recording."]
+
+        # 6. Set status to 'ready'
         meeting.status = "ready"
         db.commit()
-        logger.info(f"Meeting {meeting_id} successfully transcribed and marked ready.")
+        logger.info(f"Meeting {meeting_id} successfully summarized and marked ready.")
 
     except Exception as e:
         logger.exception(f"Transcription failed for meeting {meeting_id}: {e}")
