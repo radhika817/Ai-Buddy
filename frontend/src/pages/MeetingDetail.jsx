@@ -30,8 +30,21 @@ export default function MeetingDetail() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [deleting, setDeleting] = useState(false);
-  const [activeTab, setActiveTab] = useState('transcript');
+  const [activeTab, setActiveTab] = useState('summary');
+  const userTabSelectionRef = useRef(false);
   const fetchedTranscriptRef = useRef(false);
+
+  // Automatically default to Summary tab when the meeting is ready, unless the user manually picked a tab
+  useEffect(() => {
+    if (meeting?.status === 'ready' && !userTabSelectionRef.current) {
+      setActiveTab('summary');
+    }
+  }, [meeting?.status]);
+
+  const handleTabChange = (tabName) => {
+    userTabSelectionRef.current = true;
+    setActiveTab(tabName);
+  };
 
   const fetchMeeting = async (isInitial = false) => {
     try {
@@ -278,11 +291,13 @@ export default function MeetingDetail() {
                   {meeting.status === 'transcribing'
                     ? 'Transcribing Audio with Whisper...'
                     : meeting.status === 'analyzing'
-                    ? 'Analyzing Dialogue Segments...'
+                    ? 'Analyzing Dialogue & Generating AI Summary...'
                     : 'Processing Audio Upload...'}
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Running local speech-to-text pipeline in background. Polling every 5 seconds...
+                  {meeting.status === 'analyzing'
+                    ? 'Generating summary and key points with GPT-4o-mini. Polling every 5 seconds...'
+                    : 'Running speech-to-text pipeline in background. Polling every 5 seconds...'}
                 </p>
               </div>
             </div>
@@ -321,8 +336,8 @@ export default function MeetingDetail() {
                   : 'border-slate-800 bg-slate-950/40 text-slate-400'
               }`}
             >
-              <p className="text-xs font-bold">3. Finalizing</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Marking Ready</p>
+              <p className="text-xs font-bold">3. Analyzing</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">AI Summary</p>
             </div>
           </div>
         </motion.div>
@@ -364,7 +379,20 @@ export default function MeetingDetail() {
             <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3">
               <button
                 type="button"
-                onClick={() => setActiveTab('transcript')}
+                onClick={() => handleTabChange('summary')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
+                  activeTab === 'summary'
+                    ? 'bg-accent-500/10 text-accent-400 border border-accent-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Summary</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange('transcript')}
                 className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
                   activeTab === 'transcript'
                     ? 'bg-accent-500/10 text-accent-400 border border-accent-500/30 shadow-sm'
@@ -378,19 +406,6 @@ export default function MeetingDetail() {
                     {segments.length}
                   </span>
                 )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('summary')}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
-                  activeTab === 'summary'
-                    ? 'bg-accent-500/10 text-accent-400 border border-accent-500/30 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Executive Summary</span>
               </button>
             </div>
           )}
@@ -504,21 +519,75 @@ export default function MeetingDetail() {
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl"
+              className="p-6 sm:p-7 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl space-y-6"
             >
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-1.5 rounded-lg bg-accent-500/10 text-accent-400 border border-accent-500/20">
-                  <Sparkles className="w-4 h-4" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-accent-500/10 text-accent-400 border border-accent-500/20">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Summary</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      AI-generated overview and key meeting takeaways
+                    </p>
+                  </div>
                 </div>
-                <h2 className="text-lg font-bold text-white">Executive Summary</h2>
+
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800/80 text-slate-300 border border-slate-700/60 self-start sm:self-auto">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  GPT-4o-mini
+                </span>
               </div>
 
-              <div className="p-6 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
-                <p className="text-sm font-medium text-slate-300">Processing not started</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Automated AI summary extraction will be implemented in the next phase.
-                </p>
-              </div>
+              {meeting.summary || (meeting.key_points && meeting.key_points.length > 0) ? (
+                <div className="space-y-6">
+                  {/* Summary Text */}
+                  {meeting.summary && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Overview
+                      </h3>
+                      <div className="p-4 sm:p-5 rounded-xl bg-slate-950/50 border border-slate-800/80 text-slate-200 text-sm sm:text-base leading-relaxed">
+                        {meeting.summary}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bulleted Key Points */}
+                  {meeting.key_points && meeting.key_points.length > 0 && (
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                          Key Points
+                        </h3>
+                        <span className="text-[11px] font-mono text-slate-500">
+                          {meeting.key_points.length} points
+                        </span>
+                      </div>
+                      <ul className="space-y-2.5">
+                        {meeting.key_points.map((point, index) => (
+                          <li
+                            key={index}
+                            className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-950/40 hover:bg-slate-950/70 border border-slate-800/70 hover:border-slate-700/80 transition-colors text-xs sm:text-sm text-slate-200"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-accent-400 shrink-0 mt-1.5 shadow-sm shadow-accent-400/50" />
+                            <span className="leading-relaxed">{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-8 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-center">
+                  <Sparkles className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-slate-300">No summary available</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    A summary was not generated for this meeting.
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
         </div>
