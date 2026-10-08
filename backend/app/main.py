@@ -9,6 +9,8 @@ from app.core.database import Base, engine
 from app.models.user import User  # noqa: F401
 from app.models.meeting import Meeting  # noqa: F401
 from app.models.transcript import TranscriptSegment  # noqa: F401
+from app.models.action_item import ActionItem  # noqa: F401
+from app.models.decision import Decision  # noqa: F401
 from app.api.meetings import router as meetings_router
 
 
