@@ -134,7 +134,15 @@ def process_meeting_transcription(meeting_id: int) -> None:
         # 5. Update meeting status to 'analyzing'
         meeting.status = "analyzing"
         db.commit()
-        logger.info(f"Meeting {meeting_id} status updated to 'analyzing'. Generating AI summary...")
+        logger.info(f"Meeting {meeting_id} status updated to 'analyzing'. Generating AI summary, action items, and decisions...")
+
+        # If processing is re-run for a meeting, delete its old action items and decisions first to avoid duplicates
+        from app.models.action_item import ActionItem
+        from app.models.decision import Decision
+
+        db.query(ActionItem).filter(ActionItem.meeting_id == meeting.id).delete()
+        db.query(Decision).filter(Decision.meeting_id == meeting.id).delete()
+        db.commit()
 
         # Retrieve saved transcript segments and combine into plain text
         segments = (
@@ -145,11 +153,32 @@ def process_meeting_transcription(meeting_id: int) -> None:
         )
         plain_text = "\n".join(seg.text.strip() for seg in segments if seg.text and seg.text.strip())
 
+        meeting_date_str = meeting.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if meeting.created_at else ""
+
         if plain_text.strip():
-            from app.services.summarization import generate_meeting_summary
-            summary_result = generate_meeting_summary(plain_text)
-            meeting.summary = summary_result.get("summary")
-            meeting.key_points = summary_result.get("key_points")
+            from app.services.summarization import analyze_meeting_transcript
+            analysis_result = analyze_meeting_transcript(plain_text, meeting_date_str)
+            meeting.summary = analysis_result.get("summary")
+            meeting.key_points = analysis_result.get("key_points")
+
+            # Save action items
+            for item in analysis_result.get("action_items", []):
+                action_item_rec = ActionItem(
+                    meeting_id=meeting.id,
+                    task=item["task"],
+                    assigned_to=item.get("assigned_to"),
+                    deadline_text=item.get("deadline_text"),
+                    status="pending",
+                )
+                db.add(action_item_rec)
+
+            # Save decisions
+            for dec in analysis_result.get("decisions", []):
+                decision_rec = Decision(
+                    meeting_id=meeting.id,
+                    decision=dec,
+                )
+                db.add(decision_rec)
         else:
             meeting.summary = "No spoken dialogue was detected in the recording to summarize."
             meeting.key_points = ["No dialogue detected in audio recording."]
@@ -157,7 +186,7 @@ def process_meeting_transcription(meeting_id: int) -> None:
         # 6. Set status to 'ready'
         meeting.status = "ready"
         db.commit()
-        logger.info(f"Meeting {meeting_id} successfully summarized and marked ready.")
+        logger.info(f"Meeting {meeting_id} successfully analyzed, summarized, and marked ready.")
 
     except Exception as e:
         logger.exception(f"Transcription failed for meeting {meeting_id}: {e}")
