@@ -12,6 +12,7 @@ from app.models.transcript import TranscriptSegment  # noqa: F401
 from app.models.action_item import ActionItem  # noqa: F401
 from app.models.decision import Decision  # noqa: F401
 from app.api.meetings import router as meetings_router
+from app.api.action_items import router as action_items_router
 
 
 @asynccontextmanager
@@ -48,6 +49,7 @@ app.add_middleware(
 
 # Register API routers
 app.include_router(meetings_router)
+app.include_router(action_items_router)
 
 
 @app.get("/health", tags=["Health"])

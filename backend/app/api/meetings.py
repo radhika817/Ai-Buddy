@@ -10,8 +10,12 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.meeting import Meeting
 from app.models.transcript import TranscriptSegment
+from app.models.action_item import ActionItem
+from app.models.decision import Decision
 from app.schemas.meeting import MeetingOut
 from app.schemas.transcript import TranscriptSegmentOut
+from app.schemas.action_item import ActionItemOut
+from app.schemas.decision import DecisionOut
 from app.services.transcription import process_meeting_transcription
 
 logger = logging.getLogger(__name__)
@@ -221,3 +225,67 @@ def delete_meeting(
     db.commit()
 
     return {"detail": "Meeting deleted successfully."}
+
+
+@router.get("/{meeting_id}/action-items", response_model=List[ActionItemOut])
+def get_meeting_action_items(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns all action items for a meeting, ordered by id.
+    Only permitted for the owner of the meeting.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    if meeting.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this meeting's action items.",
+        )
+
+    items = (
+        db.query(ActionItem)
+        .filter(ActionItem.meeting_id == meeting_id)
+        .order_by(ActionItem.id.asc())
+        .all()
+    )
+    return items
+
+
+@router.get("/{meeting_id}/decisions", response_model=List[DecisionOut])
+def get_meeting_decisions(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns all decisions logged for a meeting, ordered by id.
+    Only permitted for the owner of the meeting.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    if meeting.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this meeting's decisions.",
+        )
+
+    decisions = (
+        db.query(Decision)
+        .filter(Decision.meeting_id == meeting_id)
+        .order_by(Decision.id.asc())
+        .all()
+    )
+    return decisions

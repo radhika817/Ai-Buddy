@@ -24,3 +24,15 @@ class Meeting(Base):
         cascade="all, delete-orphan",
         order_by="TranscriptSegment.start_time",
     )
+    action_items = relationship(
+        "ActionItem",
+        back_populates="meeting",
+        cascade="all, delete-orphan",
+        order_by="ActionItem.id",
+    )
+    decisions = relationship(
+        "Decision",
+        back_populates="meeting",
+        cascade="all, delete-orphan",
+        order_by="Decision.id",
+    )
