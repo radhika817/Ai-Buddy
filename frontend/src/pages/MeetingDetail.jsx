@@ -346,7 +346,7 @@ export default function MeetingDetail() {
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {meeting.status === 'analyzing'
-                    ? 'Generating summary and key points with GPT-4o-mini. Polling every 5 seconds...'
+                    ? 'Generating summary, action items and decisions with Gemini. Polling every 5 seconds...'
                     : 'Running speech-to-text pipeline in background. Polling every 5 seconds...'}
                 </p>
               </div>
@@ -622,7 +622,7 @@ export default function MeetingDetail() {
 
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800/80 text-slate-300 border border-slate-700/60 self-start sm:self-auto">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  GPT-4o-mini
+                  Gemini 2.5 Flash-Lite
                 </span>
               </div>
 
