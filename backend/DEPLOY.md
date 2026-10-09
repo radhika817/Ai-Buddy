@@ -8,7 +8,7 @@ This guide covers deploying the **AI Buddy** FastAPI backend as a Web Service on
 1. A **GitHub account** with this repository pushed: `https://github.com/radhika817/Ai-Buddy`
 2. A **Render account** (free tier works great): [render.com](https://render.com)
 3. Your **Neon PostgreSQL connection string**
-4. Your **OpenAI API key**
+4. Your **Google Gemini API key** (free tier from Google AI Studio)
 
 ---
 
@@ -47,7 +47,8 @@ Scroll down to the **Environment Variables** section and add the following keys:
 |---|---|---|
 | `DATABASE_URL` | `postgresql://...` | Your Neon PostgreSQL connection string (including `?sslmode=require`) |
 | `SECRET_KEY` | `your-secret-key-hex` | Random secret key for session/token signing. *(Generate with `openssl rand -hex 32`)* |
-| `OPENAI_API_KEY` | `sk-...` | Your OpenAI API key for Whisper and LLM summarization |
+| `GEMINI_API_KEY` | `AIza...` | Your Google Gemini API key for meeting intelligence and summarization |
+| `GEMINI_MODEL` | `gemini-2.5-flash-lite` | (Optional) Flash-Lite model name (defaults to `gemini-2.5-flash-lite`) |
 | `FRONTEND_URL` | `https://your-frontend.vercel.app` | Your Vercel frontend URL for CORS. *(You can set `http://localhost:5173` initially and update it once Vercel deploys).* |
 
 ---

@@ -10,7 +10,9 @@ services:
         sync: false
       - key: SECRET_KEY
         generateValue: true
-      - key: OPENAI_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite
       - key: FRONTEND_URL
         sync: false
