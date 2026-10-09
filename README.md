@@ -7,7 +7,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Framer Motion](https://img.shields.io/badge/Animations-Framer%20Motion-black?style=flat-square&logo=framer&logoColor=blue)](https://www.framer.com/motion/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20pgvector-336791?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org)
-[![OpenAI](https://img.shields.io/badge/AI-OpenAI%20%2B%20Whisper-412991?style=flat-square&logo=openai&logoColor=white)](https://openai.com)
+[![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
 ---
@@ -72,8 +72,8 @@ Upload any meeting recording, and AI Buddy handles:
              ▼                             ▼
 ┌─────────────────────────┐   ┌──────────────────────────┐
              │ Storage & Audio Processing│   │ AI & Extraction Pipeline │
-             │ - Local / S3 File Storage │   │ - Whisper STT API        │
-             │ - FFmpeg audio extraction │   │ - OpenAI GPT-4o / Mini   │
+             │ - Local / S3 File Storage │   │ - Whisper STT Pipeline   │
+             │ - FFmpeg audio extraction │   │ - Google Gemini (Flash)  │
 └─────────────────────────┘   └──────────────────────────┘
              │                             │
              └──────────────┬──────────────┘
@@ -139,7 +139,7 @@ ai_buddy/
 - **Python 3.10+**
 - **Node.js 18+** & `npm`
 - **PostgreSQL** instance (local, Docker, or hosted on Neon/Supabase)
-- **OpenAI API Key** (for Whisper STT and GPT summarization)
+- **Google Gemini API Key** (for LLM meeting intelligence and summarization - free tier)
 
 ---
 
@@ -171,7 +171,8 @@ Edit `backend/.env` with your credentials:
 ```ini
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_buddy
 SECRET_KEY=your-secure-secret-key-here
-OPENAI_API_KEY=sk-...your-openai-api-key...
+GEMINI_API_KEY=your-gemini-api-key-here
+GEMINI_MODEL=gemini-2.5-flash-lite
 ```
 
 Run the FastAPI development server:

@@ -29,7 +29,7 @@ The system consists of three primary components:
 ┌───────────┐  ┌────────────────────────────────────────────────────────┐
 │  Storage  │  │ AI Services                                            │
 │  (Disk /  │  │  - Whisper / STT (Audio to timestamped text)          │
-│   S3)     │  │  - LLM / OpenAI (Summaries, action items, decisions)   │
+│   S3)     │  │  - LLM / Google Gemini (Summaries, action items, decisions) │
 └───────────┘  └────────────────────────────────────────────────────────┘
       │
       ▼
