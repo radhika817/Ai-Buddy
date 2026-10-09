@@ -1,8 +1,10 @@
 import os
 import json
+import time
 import logging
 from typing import Any, Dict, Tuple
-from openai import OpenAI
+from google import genai
+from google.genai import types, errors
 
 from app.core.config import settings
 from app.services.prompts import (
@@ -12,6 +14,70 @@ from app.services.prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
+MAX_RATE_LIMIT_RETRIES = 3
+INITIAL_RATE_LIMIT_DELAY = 3.0  # seconds to wait before first retry
+
+
+class GeminiRateLimitError(RuntimeError):
+    """Raised when Gemini API rate limit (HTTP 429) is exceeded after all retry attempts."""
+    pass
+
+
+def is_rate_limit_error(exc: Exception) -> bool:
+    """
+    Detects if an exception corresponds to an HTTP 429 or RESOURCE_EXHAUSTED rate-limit error.
+    """
+    if isinstance(exc, errors.APIError):
+        if getattr(exc, "code", None) == 429:
+            return True
+        msg = str(exc).upper()
+        if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg:
+            return True
+    msg = str(exc).upper()
+    return "429" in msg or "RESOURCE_EXHAUSTED" in msg or "RATE LIMIT" in msg or "QUOTA EXCEEDED" in msg
+
+
+def call_gemini_with_rate_limit_retry(
+    client: genai.Client,
+    model: str,
+    contents: Any,
+    config: types.GenerateContentConfig,
+    max_retries: int = MAX_RATE_LIMIT_RETRIES,
+    initial_delay: float = INITIAL_RATE_LIMIT_DELAY,
+) -> types.GenerateContentResponse:
+    """
+    Executes a Gemini generation call with automatic backoff retry on HTTP 429 rate limit errors.
+    Retries up to `max_retries` times, waiting a few seconds between attempts.
+    If all retries are exhausted, raises GeminiRateLimitError.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=config,
+            )
+        except Exception as exc:
+            if is_rate_limit_error(exc):
+                if attempt < max_retries:
+                    wait_seconds = initial_delay * (attempt + 1)
+                    logger.warning(
+                        f"Gemini API rate limit (HTTP 429) encountered on attempt {attempt + 1}/{max_retries + 1}. "
+                        f"Waiting {wait_seconds:.1f}s before retrying... Error: {exc}"
+                    )
+                    time.sleep(wait_seconds)
+                    continue
+                else:
+                    logger.error(
+                        f"Gemini API rate limit exceeded (HTTP 429) after {max_retries} retries: {exc}"
+                    )
+                    raise GeminiRateLimitError(
+                        f"Gemini API rate limit reached (HTTP 429). The free-tier request quota was "
+                        f"exceeded after {max_retries} retry attempts. Please wait a few moments and try again."
+                    ) from exc
+            # Non-rate-limit exceptions (auth, bad request, server errors) are re-raised immediately
+            raise
 
 
 def extract_json_str(raw: str) -> str:
@@ -107,30 +173,35 @@ validate_summary_payload = validate_analysis_payload
 
 def analyze_meeting_transcript(transcript_text: str, meeting_date_str: str = "") -> Dict[str, Any]:
     """
-    Calls OpenAI chat API (gpt-4o-mini) to extract summary, key points, action items,
+    Calls Google Gemini Flash-Lite model to extract summary, key points, action items,
     and decisions in ONE single structured JSON call.
     Validates structure and retries once if invalid.
+    Handles HTTP 429 rate limits by retrying up to 3 times before setting failure.
     """
-    api_key = (settings.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY", "")).strip()
-    if not api_key or api_key == "your-openai-api-key-here":
-        raise ValueError("OPENAI_API_KEY is not configured in backend/.env. Please configure a valid OpenAI API key.")
+    api_key = (settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")).strip()
+    if not api_key or api_key == "your-gemini-api-key-here":
+        raise ValueError("GEMINI_API_KEY is not configured in backend/.env. Please configure a valid Gemini API key.")
 
-    client = OpenAI(api_key=api_key)
+    model_name = (settings.GEMINI_MODEL or os.environ.get("GEMINI_MODEL", "")).strip() or "gemini-2.5-flash-lite"
+    client = genai.Client(api_key=api_key)
 
-    messages = [
-        {"role": "system", "content": ANALYSIS_SYSTEM_PROMPT},
-        {"role": "user", "content": get_analysis_user_prompt(transcript_text, meeting_date_str)},
-    ]
-
-    logger.info("Calling OpenAI gpt-4o-mini for full meeting intelligence analysis...")
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        response_format={"type": "json_object"},
+    gen_config = types.GenerateContentConfig(
+        system_instruction=ANALYSIS_SYSTEM_PROMPT,
+        response_mime_type="application/json",
         temperature=0.3,
     )
 
-    raw_content = response.choices[0].message.content or ""
+    user_prompt = get_analysis_user_prompt(transcript_text, meeting_date_str)
+
+    logger.info(f"Calling Google Gemini ({model_name}) for full meeting intelligence analysis...")
+    response = call_gemini_with_rate_limit_retry(
+        client=client,
+        model=model_name,
+        contents=user_prompt,
+        config=gen_config,
+    )
+
+    raw_content = response.text or ""
 
     try:
         parsed = json.loads(extract_json_str(raw_content))
@@ -141,18 +212,22 @@ def analyze_meeting_transcript(transcript_text: str, meeting_date_str: str = "")
     except Exception as e:
         err_msg = f"JSON decoding error: {e}"
 
-    # Retrying once with error feedback
+    # Retrying once with error feedback if output failed validation
     logger.warning(f"Analysis response failed validation: {err_msg}. Retrying once with error feedback...")
-    messages.append({"role": "assistant", "content": raw_content})
-    messages.append({"role": "user", "content": get_analysis_retry_prompt(err_msg, raw_content)})
+    retry_prompt = get_analysis_retry_prompt(err_msg, raw_content)
+    retry_contents = [
+        types.Content(role="user", parts=[types.Part.from_text(text=user_prompt)]),
+        types.Content(role="model", parts=[types.Part.from_text(text=raw_content)]),
+        types.Content(role="user", parts=[types.Part.from_text(text=retry_prompt)]),
+    ]
 
-    retry_response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0.3,
+    retry_response = call_gemini_with_rate_limit_retry(
+        client=client,
+        model=model_name,
+        contents=retry_contents,
+        config=gen_config,
     )
-    retry_raw = retry_response.choices[0].message.content or ""
+    retry_raw = retry_response.text or ""
 
     try:
         retry_parsed = json.loads(extract_json_str(retry_raw))
