@@ -5,7 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/ai_buddy"
     SECRET_KEY: str = "development-secret-key-replace-in-production"
-    OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     FRONTEND_URL: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(
