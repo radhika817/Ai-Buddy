@@ -7,6 +7,14 @@ import Register from './pages/Register';
 import Upload from './pages/Upload';
 import MeetingDetail from './pages/MeetingDetail';
 
+function ProtectedRoute({ children }) {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
 function AnimatedRoutes() {
   const location = useLocation();
 
@@ -21,12 +29,33 @@ function AnimatedRoutes() {
         className="w-full flex-1"
       >
         <Routes location={location}>
-          <Route path="/" element={<Dashboard />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/upload" element={<Upload />} />
-          <Route path="/meetings/:id" element={<MeetingDetail />} />
+          <Route
+            path="/upload"
+            element={
+              <ProtectedRoute>
+                <Upload />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/meetings/:id"
+            element={
+              <ProtectedRoute>
+                <MeetingDetail />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </motion.div>

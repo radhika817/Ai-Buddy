@@ -13,6 +13,7 @@ from app.models.action_item import ActionItem  # noqa: F401
 from app.models.decision import Decision  # noqa: F401
 from app.api.meetings import router as meetings_router
 from app.api.action_items import router as action_items_router
+from app.api.auth import router as auth_router
 
 
 @asynccontextmanager
@@ -25,6 +26,10 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS error_message TEXT;"))
             conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS summary TEXT;"))
             conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS key_points JSON;"))
+            conn.execute(text("ALTER TABLE transcript_segments ADD COLUMN IF NOT EXISTS speaker TEXT;"))
+            conn.execute(text("ALTER TABLE transcript_segments ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE;"))
+            conn.execute(text("UPDATE transcript_segments SET edited = FALSE WHERE edited IS NULL;"))
+            conn.execute(text("SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users));"))
             conn.commit()
     except Exception as e:
         print(f"Schema update notice: {e}")
@@ -48,6 +53,7 @@ app.add_middleware(
 )
 
 # Register API routers
+app.include_router(auth_router)
 app.include_router(meetings_router)
 app.include_router(action_items_router)
 

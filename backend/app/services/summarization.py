@@ -182,7 +182,7 @@ def analyze_meeting_transcript(transcript_text: str, meeting_date_str: str = "")
     if not api_key or api_key == "your-gemini-api-key-here":
         raise ValueError("GEMINI_API_KEY is not configured in backend/.env. Please configure a valid Gemini API key.")
 
-    model_name = (settings.GEMINI_MODEL or os.environ.get("GEMINI_MODEL", "")).strip() or "gemini-2.5-flash-lite"
+    model_name = (settings.GEMINI_MODEL or os.environ.get("GEMINI_MODEL", "")).strip() or "gemini-3.5-flash-lite"
     client = genai.Client(api_key=api_key)
 
     gen_config = types.GenerateContentConfig(

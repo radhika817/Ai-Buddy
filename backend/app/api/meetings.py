@@ -12,10 +12,17 @@ from app.models.meeting import Meeting
 from app.models.transcript import TranscriptSegment
 from app.models.action_item import ActionItem
 from app.models.decision import Decision
-from app.schemas.meeting import MeetingOut
-from app.schemas.transcript import TranscriptSegmentOut
+from app.schemas.meeting import MeetingOut, MeetingUpdate
+from app.schemas.transcript import (
+    TranscriptSegmentOut,
+    TranscriptSegmentUpdate,
+    SpeakerRenameRequest,
+)
 from app.schemas.action_item import ActionItemOut
 from app.schemas.decision import DecisionOut
+from app.schemas.chat import ChatRequest, ChatResponse
+from app.services.chat import build_meeting_context, ask_meeting_ai
+from app.services.summarization import GeminiRateLimitError
 from app.services.transcription import process_meeting_transcription
 
 logger = logging.getLogger(__name__)
@@ -143,19 +150,37 @@ def get_meeting(
     """
     Returns one meeting only if it belongs to the logged-in user.
     """
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found.",
         )
 
-    if meeting.user_id != current_user.id:
+    return meeting
+
+
+@router.patch("/{meeting_id}", response_model=MeetingOut)
+def update_meeting_title(
+    meeting_id: int,
+    payload: MeetingUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Updates meeting title (non-empty, max 120 chars).
+    Only permitted for the owner of the meeting (404 otherwise).
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to view this meeting.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
         )
 
+    meeting.title = payload.title
+    db.commit()
+    db.refresh(meeting)
     return meeting
 
 
@@ -168,17 +193,11 @@ def get_meeting_transcript(
     """
     Returns all transcript segments for a meeting, ordered by start_time.
     """
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found.",
-        )
-
-    if meeting.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to view this meeting's transcript.",
         )
 
     segments = (
@@ -188,6 +207,101 @@ def get_meeting_transcript(
         .all()
     )
     return segments
+
+
+@router.patch("/{meeting_id}/transcript/{segment_id}", response_model=TranscriptSegmentOut)
+def update_transcript_segment(
+    meeting_id: int,
+    segment_id: int,
+    payload: TranscriptSegmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Updates text and/or speaker for a specific transcript segment.
+    Sets edited=True when text changes.
+    Only permitted for the owner of the meeting (404 otherwise).
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    segment = (
+        db.query(TranscriptSegment)
+        .filter(
+            TranscriptSegment.id == segment_id,
+            TranscriptSegment.meeting_id == meeting.id,
+        )
+        .first()
+    )
+    if not segment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transcript segment not found.",
+        )
+
+    # Check if text is being updated
+    if payload.text is not None:
+        new_text = payload.text.strip()
+        if not new_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Transcript text cannot be empty.",
+            )
+        if new_text != segment.text:
+            segment.text = new_text
+            segment.edited = True
+
+    # Check if speaker is being updated
+    if payload.speaker is not None:
+        cleaned_speaker = payload.speaker.strip()
+        segment.speaker = cleaned_speaker if cleaned_speaker else None
+
+    db.commit()
+    db.refresh(segment)
+    return segment
+
+
+@router.post("/{meeting_id}/speakers/rename")
+def rename_meeting_speaker(
+    meeting_id: int,
+    payload: SpeakerRenameRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Renames a speaker across all transcript segments in the meeting.
+    Only permitted for the owner of the meeting (404 otherwise).
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    old_name = payload.old_name.strip()
+    new_name = payload.new_name.strip()
+
+    updated_count = (
+        db.query(TranscriptSegment)
+        .filter(
+            TranscriptSegment.meeting_id == meeting.id,
+            TranscriptSegment.speaker == old_name,
+        )
+        .update({TranscriptSegment.speaker: new_name}, synchronize_session=False)
+    )
+    db.commit()
+
+    return {
+        "message": f"Renamed speaker '{old_name}' to '{new_name}' across {updated_count} segment(s).",
+        "updated_count": updated_count,
+        "old_name": old_name,
+        "new_name": new_name,
+    }
 
 
 @router.delete("/{meeting_id}", status_code=status.HTTP_200_OK)
@@ -200,17 +314,11 @@ def delete_meeting(
     Deletes the meeting record and its associated uploaded file,
     only if it belongs to the logged-in user.
     """
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found.",
-        )
-
-    if meeting.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to delete this meeting.",
         )
 
     # Delete physical file
@@ -237,17 +345,11 @@ def get_meeting_action_items(
     Returns all action items for a meeting, ordered by id.
     Only permitted for the owner of the meeting.
     """
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found.",
-        )
-
-    if meeting.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to view this meeting's action items.",
         )
 
     items = (
@@ -269,17 +371,11 @@ def get_meeting_decisions(
     Returns all decisions logged for a meeting, ordered by id.
     Only permitted for the owner of the meeting.
     """
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found.",
-        )
-
-    if meeting.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to view this meeting's decisions.",
         )
 
     decisions = (
@@ -289,3 +385,82 @@ def get_meeting_decisions(
         .all()
     )
     return decisions
+
+
+@router.post("/{meeting_id}/chat", response_model=ChatResponse)
+def chat_with_meeting(
+    meeting_id: int,
+    payload: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Answers questions about a specific meeting using AI Buddy grounded on its transcript,
+    summary, action items, and decisions.
+    Only available to the owner of the meeting and only when status is 'ready'.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    if meeting.status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Meeting is not ready for AI chat. Current status: '{meeting.status}'. Please wait until processing completes.",
+        )
+
+    # Fetch transcript segments
+    segments = (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.meeting_id == meeting.id)
+        .order_by(TranscriptSegment.start_time.asc())
+        .all()
+    )
+
+    # Fetch action items
+    action_items = (
+        db.query(ActionItem)
+        .filter(ActionItem.meeting_id == meeting.id)
+        .order_by(ActionItem.id.asc())
+        .all()
+    )
+
+    # Fetch decisions
+    decisions = (
+        db.query(Decision)
+        .filter(Decision.meeting_id == meeting.id)
+        .order_by(Decision.id.asc())
+        .all()
+    )
+
+    meeting_context = build_meeting_context(meeting, segments, action_items, decisions)
+
+    try:
+        answer = ask_meeting_ai(
+            meeting_context=meeting_context,
+            question=payload.question,
+            history=payload.history,
+        )
+        return ChatResponse(answer=answer)
+    except GeminiRateLimitError as e:
+        logger.warning(f"Rate limit hit during chat for meeting {meeting_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="AI Buddy is experiencing high demand right now. Please wait a few moments and try your question again.",
+        )
+    except ValueError as e:
+        logger.error(f"Configuration error during chat: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error during chat for meeting {meeting_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate an answer from AI Buddy. Please try again.",
+        )
+

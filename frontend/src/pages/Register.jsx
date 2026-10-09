@@ -1,16 +1,65 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, User, Mail, Lock, ArrowRight, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Bot, User, Mail, Lock, ArrowRight, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import api from '../services/api';
 
 export default function Register() {
+  const navigate = useNavigate();
+
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  // If already logged in, redirect to Dashboard
+  useEffect(() => {
+    if (localStorage.getItem('token')) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      setError('Please provide an email and password.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await api.post('/auth/register', {
+        email: email.trim(),
+        password,
+        name: name.trim() || null,
+      });
+
+      // Redirect to login upon successful registration
+      navigate('/login', {
+        state: { message: 'Account created successfully! Please sign in.' },
+        replace: true,
+      });
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      const errorMsg =
+        typeof detail === 'string'
+          ? detail
+          : Array.isArray(detail)
+          ? detail[0]?.msg || 'Validation error'
+          : 'Failed to create account. Please try again.';
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,6 +87,14 @@ export default function Register() {
           </p>
         </div>
 
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-5 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -53,7 +110,8 @@ export default function Register() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Radhika Kandalkar"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all"
+                disabled={loading}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all disabled:opacity-50"
               />
             </div>
           </div>
@@ -68,10 +126,12 @@ export default function Register() {
               </div>
               <input
                 type="email"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@company.com"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all"
+                disabled={loading}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all disabled:opacity-50"
               />
             </div>
           </div>
@@ -86,10 +146,12 @@ export default function Register() {
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all"
+                disabled={loading}
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all disabled:opacity-50"
               />
               <button
                 type="button"
@@ -99,30 +161,27 @@ export default function Register() {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5">Must be at least 8 characters long</p>
-          </div>
-
-          <div className="flex items-start pt-1">
-            <input
-              id="terms"
-              type="checkbox"
-              defaultChecked
-              className="w-4 h-4 mt-0.5 rounded border-slate-800 bg-slate-950 text-accent-500 focus:ring-accent-500/30 focus:ring-offset-0 cursor-pointer"
-            />
-            <label htmlFor="terms" className="ml-2 text-xs text-slate-400 leading-relaxed cursor-pointer">
-              I agree to the <span className="text-slate-300 underline">Terms of Service</span> and{' '}
-              <span className="text-slate-300 underline">Privacy Policy</span>
-            </label>
+            <p className="text-[11px] text-slate-500 mt-1.5">Must be at least 6 characters long</p>
           </div>
 
           <motion.button
-            whileHover={{ scale: 1.015 }}
-            whileTap={{ scale: 0.985 }}
+            whileHover={!loading ? { scale: 1.015 } : {}}
+            whileTap={!loading ? { scale: 0.985 } : {}}
             type="submit"
-            className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-accent-500 to-teal-400 hover:from-accent-400 hover:to-teal-300 text-slate-950 font-semibold rounded-xl text-sm transition-all shadow-lg shadow-accent-500/20 flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-accent-500 to-teal-400 hover:from-accent-400 hover:to-teal-300 text-slate-950 font-semibold rounded-xl text-sm transition-all shadow-lg shadow-accent-500/20 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
           >
-            <span>Create Account</span>
-            <ArrowRight className="w-4 h-4" />
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Creating account...</span>
+              </>
+            ) : (
+              <>
+                <span>Create Account</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </motion.button>
         </form>
 

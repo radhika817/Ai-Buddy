@@ -29,11 +29,11 @@ def update_action_item_status(
             detail="Action item not found.",
         )
 
-    meeting = db.query(Meeting).filter(Meeting.id == action_item.meeting_id).first()
-    if not meeting or meeting.user_id != current_user.id:
+    meeting = db.query(Meeting).filter(Meeting.id == action_item.meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to modify this action item.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Action item not found.",
         )
 
     action_item.status = payload.status

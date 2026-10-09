@@ -19,8 +19,37 @@ import {
   Volume2,
   Check,
   User,
+  Edit2,
+  X,
+  Users,
 } from 'lucide-react';
 import api from '../services/api';
+import MeetingChat from '../components/MeetingChat';
+
+const SPEAKER_PALETTES = [
+  { bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
+  { bg: 'bg-sky-500/15', text: 'text-sky-300', border: 'border-sky-500/30', dot: 'bg-sky-400' },
+  { bg: 'bg-purple-500/15', text: 'text-purple-300', border: 'border-purple-500/30', dot: 'bg-purple-400' },
+  { bg: 'bg-amber-500/15', text: 'text-amber-300', border: 'border-amber-500/30', dot: 'bg-amber-400' },
+  { bg: 'bg-rose-500/15', text: 'text-rose-300', border: 'border-rose-500/30', dot: 'bg-rose-400' },
+  { bg: 'bg-indigo-500/15', text: 'text-indigo-300', border: 'border-indigo-500/30', dot: 'bg-indigo-400' },
+  { bg: 'bg-pink-500/15', text: 'text-pink-300', border: 'border-pink-500/30', dot: 'bg-pink-400' },
+  { bg: 'bg-cyan-500/15', text: 'text-cyan-300', border: 'border-cyan-500/30', dot: 'bg-cyan-400' },
+  { bg: 'bg-teal-500/15', text: 'text-teal-300', border: 'border-teal-500/30', dot: 'bg-teal-400' },
+  { bg: 'bg-orange-500/15', text: 'text-orange-300', border: 'border-orange-500/30', dot: 'bg-orange-400' },
+];
+
+function getSpeakerColor(name) {
+  if (!name) {
+    return { bg: 'bg-slate-800/80', text: 'text-slate-400', border: 'border-slate-700/60', dot: 'bg-slate-500' };
+  }
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % SPEAKER_PALETTES.length;
+  return SPEAKER_PALETTES[index];
+}
 
 export default function MeetingDetail() {
   const { id } = useParams();
@@ -35,10 +64,138 @@ export default function MeetingDetail() {
   const [decisionsLoading, setDecisionsLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [highlightedSegmentId, setHighlightedSegmentId] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const userTabSelectionRef = useRef(false);
   const fetchedDetailsRef = useRef(false);
+
+  // Toast notifications
+  const [toast, setToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
+
+  // Meeting Title inline editing
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleInputValue, setTitleInputValue] = useState('');
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+
+  // Segment text inline editing
+  const [editingTextSegId, setEditingTextSegId] = useState(null);
+  const [textInputValue, setTextInputValue] = useState('');
+  const [isSavingText, setIsSavingText] = useState(false);
+
+  // Segment speaker inline editing
+  const [editingSpeakerSegId, setEditingSpeakerSegId] = useState(null);
+  const [speakerInputValue, setSpeakerInputValue] = useState('');
+  const [isSavingSpeaker, setIsSavingSpeaker] = useState(false);
+
+  // Batch rename speaker modal
+  const [isRenameSpeakerOpen, setIsRenameSpeakerOpen] = useState(false);
+  const [renameOldSpeaker, setRenameOldSpeaker] = useState('');
+  const [renameNewSpeaker, setRenameNewSpeaker] = useState('');
+  const [isRenamingSpeaker, setIsRenamingSpeaker] = useState(false);
+
+  // Distinct speaker names in this meeting
+  const uniqueSpeakers = Array.from(
+    new Set(segments.map((s) => s.speaker).filter(Boolean))
+  ).sort();
+
+  const handleSaveTitle = async () => {
+    const trimmed = titleInputValue.trim();
+    if (!trimmed) {
+      showToast('Meeting title cannot be empty.', 'error');
+      return;
+    }
+    if (trimmed.length > 120) {
+      showToast('Meeting title must be 120 characters or less.', 'error');
+      return;
+    }
+    try {
+      setIsSavingTitle(true);
+      const res = await api.patch(`/meetings/${id}`, { title: trimmed });
+      setMeeting((prev) => ({ ...prev, title: res.data.title }));
+      setIsEditingTitle(false);
+      showToast('Meeting title updated successfully.');
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to update meeting title.', 'error');
+    } finally {
+      setIsSavingTitle(false);
+    }
+  };
+
+  const handleSaveSegmentText = async (segId) => {
+    const trimmed = textInputValue.trim();
+    if (!trimmed) {
+      showToast('Transcript text cannot be empty.', 'error');
+      return;
+    }
+    try {
+      setIsSavingText(true);
+      const res = await api.patch(`/meetings/${id}/transcript/${segId}`, { text: trimmed });
+      setSegments((prev) =>
+        prev.map((s) => (s.id === segId ? { ...s, text: res.data.text, edited: res.data.edited } : s))
+      );
+      setEditingTextSegId(null);
+      showToast('Transcript segment updated.');
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to update transcript text.', 'error');
+    } finally {
+      setIsSavingText(false);
+    }
+  };
+
+  const handleSaveSpeaker = async (segId) => {
+    const trimmed = speakerInputValue.trim();
+    try {
+      setIsSavingSpeaker(true);
+      const res = await api.patch(`/meetings/${id}/transcript/${segId}`, {
+        speaker: trimmed || null,
+      });
+      setSegments((prev) =>
+        prev.map((s) => (s.id === segId ? { ...s, speaker: res.data.speaker } : s))
+      );
+      setEditingSpeakerSegId(null);
+      showToast(trimmed ? `Speaker set to "${trimmed}".` : 'Speaker label removed.');
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to update speaker label.', 'error');
+    } finally {
+      setIsSavingSpeaker(false);
+    }
+  };
+
+  const handleBatchRenameSpeaker = async () => {
+    const oldName = renameOldSpeaker.trim();
+    const newName = renameNewSpeaker.trim();
+    if (!oldName || !newName) {
+      showToast('Both current and new speaker names are required.', 'error');
+      return;
+    }
+    try {
+      setIsRenamingSpeaker(true);
+      const res = await api.post(`/meetings/${id}/speakers/rename`, {
+        old_name: oldName,
+        new_name: newName,
+      });
+      setSegments((prev) =>
+        prev.map((s) => (s.speaker === oldName ? { ...s, speaker: newName } : s))
+      );
+      setIsRenameSpeakerOpen(false);
+      setRenameNewSpeaker('');
+      showToast(res.data.message || `Renamed "${oldName}" to "${newName}" across meeting.`);
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to rename speaker.', 'error');
+    } finally {
+      setIsRenamingSpeaker(false);
+    }
+  };
 
   // Automatically default to Summary tab when the meeting is ready, unless the user manually picked a tab
   useEffect(() => {
@@ -50,6 +207,50 @@ export default function MeetingDetail() {
   const handleTabChange = (tabName) => {
     userTabSelectionRef.current = true;
     setActiveTab(tabName);
+  };
+
+  const handleTimestampClick = (timestampStr) => {
+    if (!timestampStr) return;
+    const clean = timestampStr.replace(/[\[\]]/g, '');
+    const parts = clean.split(':').map(Number);
+    let totalSeconds = 0;
+    if (parts.length === 2) {
+      totalSeconds = parts[0] * 60 + parts[1];
+    } else if (parts.length === 3) {
+      totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+
+    // Switch to transcript tab and clear search query
+    handleTabChange('transcript');
+    setSearchTerm('');
+
+    if (segments && segments.length > 0) {
+      let matched = segments.find(
+        (s) => s.start_time <= totalSeconds && s.end_time >= totalSeconds
+      );
+      if (!matched) {
+        matched = segments.reduce((closest, curr) => {
+          if (!closest) return curr;
+          return Math.abs(curr.start_time - totalSeconds) < Math.abs(closest.start_time - totalSeconds)
+            ? curr
+            : closest;
+        }, null);
+      }
+
+      if (matched) {
+        setHighlightedSegmentId(matched.id);
+        setTimeout(() => {
+          const el = document.getElementById(`segment-${matched.id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 150);
+
+        setTimeout(() => {
+          setHighlightedSegmentId(null);
+        }, 3500);
+      }
+    }
   };
 
   const fetchMeeting = async (isInitial = false) => {
@@ -234,9 +435,12 @@ export default function MeetingDetail() {
   const isFailed = meeting?.status?.toLowerCase() === 'failed';
   const isReady = meeting?.status?.toLowerCase() === 'ready';
 
-  const filteredSegments = segments.filter((seg) =>
-    seg.text.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSegments = segments.filter((seg) => {
+    const q = searchTerm.toLowerCase();
+    const matchesText = seg.text && seg.text.toLowerCase().includes(q);
+    const matchesSpeaker = seg.speaker && seg.speaker.toLowerCase().includes(q);
+    return matchesText || matchesSpeaker;
+  });
 
   if (loading) {
     return (
@@ -314,9 +518,57 @@ export default function MeetingDetail() {
           </span>
         </div>
 
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-          {meeting.title}
-        </h1>
+        {isEditingTitle ? (
+          <div className="flex items-center gap-2 max-w-2xl mt-1">
+            <input
+              type="text"
+              value={titleInputValue}
+              onChange={(e) => setTitleInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTitle();
+                if (e.key === 'Escape') setIsEditingTitle(false);
+              }}
+              maxLength={120}
+              autoFocus
+              className="flex-1 px-3 py-1.5 bg-slate-950/90 border border-accent-500/60 rounded-xl text-xl sm:text-2xl font-bold text-white focus:outline-none focus:ring-1 focus:ring-accent-500"
+            />
+            <button
+              type="button"
+              onClick={handleSaveTitle}
+              disabled={isSavingTitle || !titleInputValue.trim()}
+              className="p-2 rounded-xl bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white transition-colors"
+              title="Save title"
+            >
+              {isSavingTitle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditingTitle(false)}
+              disabled={isSavingTitle}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 group flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              {meeting.title}
+            </h1>
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditingTitle(true);
+                setTitleInputValue(meeting.title);
+              }}
+              className="opacity-60 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"
+              title="Rename meeting"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center gap-2 text-xs text-slate-400 font-mono">
           <FileAudio className="w-4 h-4 text-accent-400" />
@@ -516,15 +768,32 @@ export default function MeetingDetail() {
                 </div>
 
                 {isReady && segments.length > 0 && (
-                  <div className="relative w-full sm:w-60">
-                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Search dialogue..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
-                    />
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRenameSpeakerOpen(true);
+                        setRenameOldSpeaker(uniqueSpeakers[0] || '');
+                        setRenameNewSpeaker('');
+                      }}
+                      disabled={uniqueSpeakers.length === 0}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-semibold text-slate-200 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      title={uniqueSpeakers.length === 0 ? 'Assign a speaker to any segment first' : 'Rename a speaker across all segments in this meeting'}
+                    >
+                      <Users className="w-3.5 h-3.5 text-accent-400" />
+                      <span>Rename Speaker</span>
+                    </button>
+
+                    <div className="relative w-full sm:w-56">
+                      <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search dialogue or speaker..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -574,25 +843,148 @@ export default function MeetingDetail() {
                     </div>
                   ) : (
                     <div className="space-y-3.5 max-h-[600px] overflow-y-auto pr-1">
-                      {filteredSegments.map((seg) => (
-                        <div
-                          key={seg.id}
-                          className="p-3.5 rounded-xl bg-slate-950/50 hover:bg-slate-950/80 border border-slate-800/80 transition-colors flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4"
-                        >
-                          <div className="shrink-0 flex items-center gap-1.5 text-accent-400 font-mono text-xs bg-accent-500/10 px-2.5 py-1 rounded-lg border border-accent-500/20 self-start">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatSeconds(seg.start_time)}</span>
-                            <span className="text-slate-500">-</span>
-                            <span>{formatSeconds(seg.end_time)}</span>
-                          </div>
+                      {filteredSegments.map((seg) => {
+                        const speakerTheme = getSpeakerColor(seg.speaker);
+                        return (
+                          <div
+                            key={seg.id}
+                            id={`segment-${seg.id}`}
+                            className={`group p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
+                              highlightedSegmentId === seg.id
+                                ? 'bg-accent-500/20 border-accent-400 ring-2 ring-accent-400/50 shadow-lg shadow-accent-500/25'
+                                : 'bg-slate-950/50 hover:bg-slate-950/80 border border-slate-800/80'
+                            }`}
+                          >
+                            {/* Segment Header: Timing, Speaker Chip, and Actions */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="shrink-0 flex items-center gap-1.5 text-accent-400 font-mono text-xs bg-accent-500/10 px-2.5 py-1 rounded-lg border border-accent-500/20">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{formatSeconds(seg.start_time)}</span>
+                                  <span className="text-slate-500">-</span>
+                                  <span>{formatSeconds(seg.end_time)}</span>
+                                </div>
 
-                          <div className="flex-1">
-                            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-                              {seg.text}
-                            </p>
+                                {/* Speaker Chip / Speaker Edit */}
+                                {editingSpeakerSegId === seg.id ? (
+                                  <div className="inline-flex items-center gap-1 bg-slate-900 border border-accent-500/40 rounded-lg px-2 py-0.5 shadow-sm">
+                                    <input
+                                      list="meeting-speakers-datalist"
+                                      type="text"
+                                      value={speakerInputValue}
+                                      onChange={(e) => setSpeakerInputValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveSpeaker(seg.id);
+                                        if (e.key === 'Escape') setEditingSpeakerSegId(null);
+                                      }}
+                                      placeholder="Speaker name..."
+                                      autoFocus
+                                      className="w-28 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none font-medium"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveSpeaker(seg.id)}
+                                      disabled={isSavingSpeaker}
+                                      className="text-emerald-400 hover:text-emerald-300 p-0.5 rounded transition-colors"
+                                      title="Save speaker"
+                                    >
+                                      {isSavingSpeaker ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingSpeakerSegId(null)}
+                                      disabled={isSavingSpeaker}
+                                      className="text-slate-400 hover:text-slate-200 p-0.5 rounded transition-colors"
+                                      title="Cancel"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingSpeakerSegId(seg.id);
+                                      setSpeakerInputValue(seg.speaker || '');
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                                      seg.speaker
+                                        ? `${speakerTheme.bg} ${speakerTheme.text} ${speakerTheme.border} hover:brightness-125`
+                                        : 'bg-slate-900/60 text-slate-400 border-dashed border-slate-700/80 hover:text-white hover:border-slate-500'
+                                    }`}
+                                    title="Click to assign speaker or pick from suggestions"
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${speakerTheme.dot}`} />
+                                    <span className="font-semibold">{seg.speaker || '+ Speaker'}</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Edit segment text button (when not editing) */}
+                              {editingTextSegId !== seg.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingTextSegId(seg.id);
+                                    setTextInputValue(seg.text);
+                                  }}
+                                  className="opacity-60 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all text-xs flex items-center gap-1"
+                                  title="Edit segment text"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline text-[11px]">Edit</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Segment Content: inline edit or normal view */}
+                            {editingTextSegId === seg.id ? (
+                              <div className="space-y-2 pt-1">
+                                <textarea
+                                  value={textInputValue}
+                                  onChange={(e) => setTextInputValue(e.target.value)}
+                                  rows={2}
+                                  autoFocus
+                                  className="w-full p-2.5 bg-slate-900/90 border border-accent-500/50 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:ring-1 focus:ring-accent-500 leading-relaxed resize-y"
+                                />
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveSegmentText(seg.id)}
+                                    disabled={isSavingText || !textInputValue.trim()}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                                  >
+                                    {isSavingText ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingTextSegId(null)}
+                                    disabled={isSavingText}
+                                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed inline">
+                                  {seg.text}
+                                </p>
+                                {seg.edited && (
+                                  <span
+                                    className="ml-2 inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold text-slate-400 bg-slate-800/80 border border-slate-700/60 align-baseline tracking-wide uppercase"
+                                    title="This transcript segment was edited"
+                                  >
+                                    edited
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </>
@@ -981,18 +1373,128 @@ export default function MeetingDetail() {
             )}
           </motion.div>
 
-          {/* Meeting Memory / Q&A Prompt Teaser */}
-          <div className="p-6 bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-accent-500/20 rounded-2xl shadow-xl">
-            <div className="flex items-center gap-2 mb-2 text-accent-400">
-              <Bot className="w-4 h-4" />
-              <h3 className="text-xs font-bold uppercase tracking-wider">Ask AI Buddy</h3>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Ask natural language questions about this meeting once processing is completed.
-            </p>
-          </div>
+          {/* Meeting AI Chat Assistant */}
+          {meeting && (
+            <MeetingChat
+              meetingId={meeting.id}
+              isReady={isReady}
+              meetingStatus={meeting.status}
+              onTimestampClick={handleTimestampClick}
+            />
+          )}
         </div>
       </div>
+
+      {/* HTML5 Datalist for Speaker Autocomplete */}
+      <datalist id="meeting-speakers-datalist">
+        {uniqueSpeakers.map((spk) => (
+          <option key={spk} value={spk} />
+        ))}
+      </datalist>
+
+      {/* Rename Speaker Modal */}
+      {isRenameSpeakerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Users className="w-4 h-4 text-accent-400" />
+                Rename Speaker Everywhere
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsRenameSpeakerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 my-5">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  Select Existing Speaker
+                </label>
+                <select
+                  value={renameOldSpeaker}
+                  onChange={(e) => setRenameOldSpeaker(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-accent-500"
+                >
+                  {uniqueSpeakers.map((spk) => (
+                    <option key={spk} value={spk}>
+                      {spk} ({segments.filter((s) => s.speaker === spk).length} segment{segments.filter((s) => s.speaker === spk).length === 1 ? '' : 's'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  New Speaker Name
+                </label>
+                <input
+                  type="text"
+                  value={renameNewSpeaker}
+                  onChange={(e) => setRenameNewSpeaker(e.target.value)}
+                  placeholder="e.g. Radhika"
+                  maxLength={100}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleBatchRenameSpeaker();
+                  }}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsRenameSpeakerOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBatchRenameSpeaker}
+                disabled={isRenamingSpeaker || !renameNewSpeaker.trim() || !renameOldSpeaker}
+                className="px-4 py-2 rounded-xl bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                {isRenamingSpeaker ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Rename Everywhere
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Feedback Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div
+            className={`px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 text-xs font-semibold backdrop-blur-xl ${
+              toast.type === 'error'
+                ? 'bg-rose-950/90 text-rose-200 border-rose-500/40'
+                : 'bg-emerald-950/90 text-emerald-200 border-emerald-500/40'
+            }`}
+          >
+            {toast.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            )}
+            <span>{toast.message}</span>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="ml-2 text-slate-400 hover:text-white"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
