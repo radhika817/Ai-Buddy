@@ -14,3 +14,4 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     meetings = relationship("Meeting", back_populates="user", cascade="all, delete-orphan")
+    transcript_chunks = relationship("TranscriptChunk", back_populates="user", cascade="all, delete-orphan")

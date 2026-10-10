@@ -16,6 +16,7 @@ class MeetingOut(BaseModel):
     summary: Optional[str] = None
     key_points: Optional[List[str]] = None
     error_message: Optional[str] = None
+    indexed: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

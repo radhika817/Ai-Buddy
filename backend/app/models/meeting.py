@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, JSON, Boolean
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -15,6 +15,7 @@ class Meeting(Base):
     summary = Column(Text, nullable=True)
     key_points = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
+    indexed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="meetings")
@@ -23,6 +24,12 @@ class Meeting(Base):
         back_populates="meeting",
         cascade="all, delete-orphan",
         order_by="TranscriptSegment.start_time",
+    )
+    transcript_chunks = relationship(
+        "TranscriptChunk",
+        back_populates="meeting",
+        cascade="all, delete-orphan",
+        order_by="TranscriptChunk.start_time",
     )
     action_items = relationship(
         "ActionItem",

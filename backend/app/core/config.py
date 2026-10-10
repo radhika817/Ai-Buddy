@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     FRONTEND_URL: str = "http://localhost:5173"
+    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_DIM: int = 384
 
     model_config = SettingsConfigDict(
         env_file=".env",
