@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import Upload from './pages/Upload';
 import MeetingDetail from './pages/MeetingDetail';
 import CrossMeetingChat from './pages/CrossMeetingChat';
+import Tasks from './pages/Tasks';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -46,6 +47,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute>
                 <Upload />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tasks"
+            element={
+              <ProtectedRoute>
+                <Tasks />
               </ProtectedRoute>
             }
           />

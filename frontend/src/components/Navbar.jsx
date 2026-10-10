@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, LayoutDashboard, UploadCloud, LogIn, UserPlus, LogOut, User, Menu, X, Sparkles, MessageSquare } from 'lucide-react';
+import { Bot, LayoutDashboard, UploadCloud, LogIn, UserPlus, LogOut, User, Menu, X, Sparkles, MessageSquare, CheckSquare } from 'lucide-react';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -92,6 +92,10 @@ export default function Navbar() {
               <LayoutDashboard className="w-4 h-4 opacity-70" />
               Dashboard
             </NavLink>
+            <NavLink to="/tasks" className={navLinkClass}>
+              <CheckSquare className="w-4 h-4 opacity-70" />
+              Tasks
+            </NavLink>
             <NavLink to="/chat" className={navLinkClass}>
               <MessageSquare className="w-4 h-4 opacity-70" />
               Ask AI Buddy
@@ -174,6 +178,10 @@ export default function Navbar() {
                 <NavLink to="/" onClick={() => setMobileMenuOpen(false)} className={mobileNavLinkClass}>
                   <LayoutDashboard className="w-5 h-5" />
                   Dashboard
+                </NavLink>
+                <NavLink to="/tasks" onClick={() => setMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                  <CheckSquare className="w-5 h-5" />
+                  Tasks
                 </NavLink>
                 <NavLink to="/chat" onClick={() => setMobileMenuOpen(false)} className={mobileNavLinkClass}>
                   <MessageSquare className="w-5 h-5" />
