@@ -162,12 +162,17 @@ def process_meeting_transcription(meeting_id: int) -> None:
             meeting.key_points = analysis_result.get("key_points")
 
             # Save action items
+            from app.services.date_parser import parse_deadline_date
+
             for item in analysis_result.get("action_items", []):
+                raw_deadline_text = item.get("deadline_text")
+                parsed_deadline_date = parse_deadline_date(raw_deadline_text, meeting.created_at)
                 action_item_rec = ActionItem(
                     meeting_id=meeting.id,
                     task=item["task"],
                     assigned_to=item.get("assigned_to"),
-                    deadline_text=item.get("deadline_text"),
+                    deadline_text=raw_deadline_text,
+                    deadline_date=parsed_deadline_date,
                     status="pending",
                 )
                 db.add(action_item_rec)
