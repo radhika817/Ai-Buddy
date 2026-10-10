@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -59,6 +59,7 @@ function getSpeakerColor(name) {
 export default function MeetingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [meeting, setMeeting] = useState(null);
   const [segments, setSegments] = useState([]);
   const [actionItems, setActionItems] = useState([]);
@@ -303,10 +304,51 @@ export default function MeetingDetail() {
 
   // Automatically default to Summary tab when the meeting is ready, unless the user manually picked a tab
   useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      userTabSelectionRef.current = true;
+      setActiveTab(tabParam);
+      return;
+    }
     if (meeting?.status === 'ready' && !userTabSelectionRef.current) {
       setActiveTab('summary');
     }
-  }, [meeting?.status]);
+  }, [meeting?.status, searchParams]);
+
+  // Deep-link to segment from cross-meeting chat citations / sources (?tab=transcript&t=...)
+  useEffect(() => {
+    const timeParam = searchParams.get('t');
+    if (timeParam !== null && segments && segments.length > 0) {
+      const totalSeconds = parseFloat(timeParam);
+      if (!isNaN(totalSeconds)) {
+        let matched = segments.find(
+          (s) => s.start_time <= totalSeconds && s.end_time >= totalSeconds
+        );
+        if (!matched) {
+          matched = segments.reduce((closest, curr) => {
+            if (!closest) return curr;
+            return Math.abs(curr.start_time - totalSeconds) < Math.abs(closest.start_time - totalSeconds)
+              ? curr
+              : closest;
+          }, null);
+        }
+
+        if (matched) {
+          setHighlightedSegmentId(matched.id);
+          setTimeout(() => {
+            const el = document.getElementById(`segment-${matched.id}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 250);
+
+          setTimeout(() => {
+            setHighlightedSegmentId(null);
+          }, 3500);
+        }
+      }
+    }
+  }, [searchParams, segments]);
 
   const handleTabChange = (tabName) => {
     userTabSelectionRef.current = true;
