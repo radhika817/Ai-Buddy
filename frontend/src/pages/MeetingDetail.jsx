@@ -588,8 +588,50 @@ export default function MeetingDetail() {
           Back to Meetings
         </Link>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {renderStatusBadge(meeting.status)}
+
+          {/* Export Button */}
+          <button
+            type="button"
+            onClick={handleExportMarkdown}
+            disabled={!isReady || exporting}
+            className={`p-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              !isReady
+                ? 'opacity-40 cursor-not-allowed text-slate-500 border-slate-800/50'
+                : 'hover:bg-slate-800 text-slate-300 hover:text-white hover:border-slate-700 shadow-sm'
+            }`}
+            title={!isReady ? 'Export is available once the meeting is ready' : 'Download Markdown export (.md)'}
+          >
+            {exporting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-accent-400" />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-accent-400" />
+            )}
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
+          {/* Follow-up Email Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsEmailModalOpen(true);
+              if (!emailSubject && !emailBody) {
+                handleGenerateEmail();
+              }
+            }}
+            disabled={!isReady}
+            className={`p-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              !isReady
+                ? 'opacity-40 cursor-not-allowed text-slate-500 border-slate-800/50'
+                : 'hover:bg-accent-500/10 text-slate-300 hover:text-accent-300 hover:border-accent-500/30 shadow-sm'
+            }`}
+            title={!isReady ? 'Follow-up email is available once the meeting is ready' : 'Draft a follow-up email recap'}
+          >
+            <Mail className="w-3.5 h-3.5 text-accent-400" />
+            <span className="hidden sm:inline">Follow-up email</span>
+          </button>
+
           <button
             type="button"
             onClick={handleDelete}
@@ -1568,6 +1610,203 @@ export default function MeetingDetail() {
                 {isRenamingSpeaker ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 Rename Everywhere
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up Email Modal */}
+      {isEmailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-accent-500/10 text-accent-400 border border-accent-500/20">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Draft Follow-Up Email</h3>
+                  <p className="text-xs text-slate-400">Recap meeting summary, action items, and decisions</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEmailModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Close modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
+              {/* Tone Toggle & Generate Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-400">Tone:</span>
+                  <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmailTone('friendly');
+                        if (emailSubject || emailBody) {
+                          handleGenerateEmail('friendly');
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        emailTone === 'friendly'
+                          ? 'bg-accent-500 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Friendly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmailTone('formal');
+                        if (emailSubject || emailBody) {
+                          handleGenerateEmail('formal');
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        emailTone === 'formal'
+                          ? 'bg-accent-500 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Formal
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleGenerateEmail()}
+                  disabled={isGeneratingEmail}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                >
+                  {isGeneratingEmail ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Generating with Gemini...</span>
+                    </>
+                  ) : emailSubject || emailBody ? (
+                    <>
+                      <RotateCw className="w-3.5 h-3.5" />
+                      <span>Regenerate</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Generate</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Error Alert */}
+              {emailError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-2.5 text-rose-300 text-xs">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 leading-relaxed">{emailError}</div>
+                </div>
+              )}
+
+              {/* Subject Field */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-medium text-slate-300">Subject</label>
+                  {emailSubject && (
+                    <button
+                      type="button"
+                      onClick={handleCopySubject}
+                      className="text-[11px] text-accent-400 hover:text-accent-300 flex items-center gap-1 transition-colors"
+                    >
+                      {copiedSubject ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy Subject</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="Subject will appear here..."
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
+                />
+              </div>
+
+              {/* Body Field */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-medium text-slate-300">Email Body</label>
+                  {emailBody && (
+                    <button
+                      type="button"
+                      onClick={handleCopyBody}
+                      className="text-[11px] text-accent-400 hover:text-accent-300 flex items-center gap-1 transition-colors"
+                    >
+                      {copiedBody ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy Body</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  rows={10}
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  placeholder="Email body will appear here..."
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-500 leading-relaxed font-sans resize-y"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-800 shrink-0">
+              <div className="flex items-center gap-2">
+                {emailSubject || emailBody ? (
+                  <a
+                    href={getMailtoLink()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 hover:text-white transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-accent-400" />
+                    <span>Open in email app</span>
+                  </a>
+                ) : null}
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEmailModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
