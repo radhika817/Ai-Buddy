@@ -313,6 +313,8 @@ def rename_meeting_speaker(
         )
         .update({TranscriptSegment.speaker: new_name}, synchronize_session=False)
     )
+    if updated_count > 0:
+        meeting.indexed = False
     db.commit()
 
     return {
