@@ -16,6 +16,7 @@ from app.api.meetings import router as meetings_router
 from app.api.action_items import router as action_items_router
 from app.api.auth import router as auth_router
 from app.api.search import router as search_router
+from app.api.chat import router as chat_router
 
 
 @asynccontextmanager
@@ -64,6 +65,7 @@ app.include_router(auth_router)
 app.include_router(meetings_router)
 app.include_router(action_items_router)
 app.include_router(search_router)
+app.include_router(chat_router)
 
 
 @app.get("/health", tags=["Health"])

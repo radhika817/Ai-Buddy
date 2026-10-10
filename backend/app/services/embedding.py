@@ -220,6 +220,7 @@ def search_transcript_chunks(
             db.query(
                 TranscriptChunk,
                 Meeting.title.label("meeting_title"),
+                Meeting.created_at.label("meeting_created_at"),
                 distance_col,
             )
             .join(Meeting, TranscriptChunk.meeting_id == Meeting.id)
@@ -230,13 +231,15 @@ def search_transcript_chunks(
         results = query_stmt.all()
 
         output = []
-        for chunk, meeting_title, distance in results:
+        for chunk, meeting_title, meeting_created_at, distance in results:
             dist_val = float(distance) if distance is not None else 1.0
             # Cosine similarity score = 1.0 - cosine_distance
             similarity = max(0.0, 1.0 - dist_val)
             output.append({
+                "chunk_id": chunk.id,
                 "meeting_id": chunk.meeting_id,
                 "meeting_title": meeting_title,
+                "meeting_date": meeting_created_at,
                 "start_time": chunk.start_time,
                 "end_time": chunk.end_time,
                 "text": chunk.text,
@@ -246,7 +249,11 @@ def search_transcript_chunks(
     else:
         # SQLite test environment fallback: filter by user_id in SQL query
         candidates = (
-            db.query(TranscriptChunk, Meeting.title.label("meeting_title"))
+            db.query(
+                TranscriptChunk,
+                Meeting.title.label("meeting_title"),
+                Meeting.created_at.label("meeting_created_at"),
+            )
             .join(Meeting, TranscriptChunk.meeting_id == Meeting.id)
             .filter(TranscriptChunk.user_id == user_id)
             .all()
@@ -256,7 +263,7 @@ def search_transcript_chunks(
         q_vec = np.array(query_vector, dtype=float)
         q_norm = np.linalg.norm(q_vec)
 
-        for chunk, meeting_title in candidates:
+        for chunk, meeting_title, meeting_created_at in candidates:
             c_vec = np.array(chunk.embedding, dtype=float)
             c_norm = np.linalg.norm(c_vec)
             if q_norm == 0 or c_norm == 0:
@@ -265,8 +272,10 @@ def search_transcript_chunks(
                 sim = float(np.dot(q_vec, c_vec) / (q_norm * c_norm))
             similarity = max(0.0, sim)
             scored.append({
+                "chunk_id": chunk.id,
                 "meeting_id": chunk.meeting_id,
                 "meeting_title": meeting_title,
+                "meeting_date": meeting_created_at,
                 "start_time": chunk.start_time,
                 "end_time": chunk.end_time,
                 "text": chunk.text,
@@ -275,3 +284,124 @@ def search_transcript_chunks(
 
         scored.sort(key=lambda x: x["similarity_score"], reverse=True)
         return scored[:limit]
+
+
+def keyword_search_chunks(
+    db: Session,
+    user_id: int,
+    query: str,
+    limit: int = 8,
+) -> List[Dict[str, Any]]:
+    """
+    Performs keyword matching (using SQL ILIKE) on chunk text across the user's meetings.
+    The user_id filter is strictly applied at the database query level.
+    """
+    import re
+    from sqlalchemy import or_
+
+    cleaned_query = (query or "").strip()
+    if not cleaned_query:
+        return []
+
+    # Tokenize words, ticket numbers (e.g. PR-102, ABC-123), and names
+    tokens = [t for t in re.split(r"[^\w\-]+", cleaned_query) if len(t) >= 2]
+    terms = []
+    if len(cleaned_query) >= 3 and len(tokens) > 1:
+        terms.append(cleaned_query)
+    for t in tokens:
+        if t not in terms:
+            terms.append(t)
+
+    search_terms = terms[:6]
+    if not search_terms:
+        search_terms = [cleaned_query]
+
+    filters = [TranscriptChunk.text.ilike(f"%{term}%") for term in search_terms]
+
+    query_stmt = (
+        db.query(
+            TranscriptChunk,
+            Meeting.title.label("meeting_title"),
+            Meeting.created_at.label("meeting_created_at"),
+        )
+        .join(Meeting, TranscriptChunk.meeting_id == Meeting.id)
+        .filter(TranscriptChunk.user_id == user_id)
+        .filter(or_(*filters))
+        .order_by(TranscriptChunk.id.desc())
+        .limit(limit)
+    )
+
+    results = query_stmt.all()
+    output = []
+    for chunk, meeting_title, meeting_created_at in results:
+        output.append({
+            "chunk_id": chunk.id,
+            "meeting_id": chunk.meeting_id,
+            "meeting_title": meeting_title,
+            "meeting_date": meeting_created_at,
+            "start_time": chunk.start_time,
+            "end_time": chunk.end_time,
+            "text": chunk.text,
+            "similarity_score": 1.0,
+        })
+    return output
+
+
+def hybrid_search_chunks(
+    db: Session,
+    user_id: int,
+    query: str,
+    semantic_limit: int = 8,
+    keyword_limit: int = 8,
+) -> List[Dict[str, Any]]:
+    """
+    Runs semantic search (top 6-8 chunks) + keyword match (ILIKE) on chunk text,
+    merges them removing duplicates, and sorts the final chunks by meeting date
+    and start_time so the model can observe chronological progression.
+    """
+    from datetime import datetime, timezone
+
+    semantic_results = search_transcript_chunks(
+        db=db,
+        user_id=user_id,
+        query=query,
+        limit=semantic_limit,
+    )
+    keyword_results = keyword_search_chunks(
+        db=db,
+        user_id=user_id,
+        query=query,
+        limit=keyword_limit,
+    )
+
+    seen_ids = set()
+    merged = []
+
+    for item in semantic_results:
+        cid = item.get("chunk_id")
+        if cid is not None:
+            if cid not in seen_ids:
+                seen_ids.add(cid)
+                merged.append(item)
+        else:
+            merged.append(item)
+
+    for item in keyword_results:
+        cid = item.get("chunk_id")
+        if cid is not None:
+            if cid not in seen_ids:
+                seen_ids.add(cid)
+                merged.append(item)
+        else:
+            merged.append(item)
+
+    def sort_key(item):
+        dt = item.get("meeting_date")
+        if dt is None:
+            dt = datetime.min
+        if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return (dt, float(item.get("start_time", 0.0)))
+
+    merged.sort(key=sort_key)
+    return merged

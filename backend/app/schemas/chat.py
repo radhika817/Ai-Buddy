@@ -17,3 +17,15 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+
+
+class ChatSource(BaseModel):
+    meeting_id: int
+    meeting_title: str
+    start_time: float
+    text_preview: str
+
+
+class CrossMeetingChatResponse(BaseModel):
+    answer: str
+    sources: List[ChatSource]
