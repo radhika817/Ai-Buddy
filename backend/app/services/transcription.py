@@ -188,6 +188,19 @@ def process_meeting_transcription(meeting_id: int) -> None:
         db.commit()
         logger.info(f"Meeting {meeting_id} successfully analyzed, summarized, and marked ready.")
 
+        # 7. Automatic semantic indexing in the background (failure does not mark meeting as failed)
+        try:
+            from app.services.embedding import index_meeting_transcript
+            index_meeting_transcript(meeting.id, db)
+            logger.info(f"Meeting {meeting_id} successfully indexed.")
+        except Exception as idx_err:
+            logger.exception(f"Semantic indexing error for meeting {meeting_id} (meeting remains ready): {idx_err}")
+            try:
+                meeting.indexed = False
+                db.commit()
+            except Exception:
+                db.rollback()
+
     except Exception as e:
         logger.exception(f"Transcription failed for meeting {meeting_id}: {e}")
         db.rollback()
