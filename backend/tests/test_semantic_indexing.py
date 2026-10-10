@@ -224,9 +224,9 @@ class TestSemanticIndexing(unittest.TestCase):
         )
         self.db.add(meeting)
         self.db.commit()
-        self.db.refresh(meeting)
+        meeting_id = meeting.id
 
-        with patch("app.services.transcription.SessionLocal", return_value=self.db), \
+        with patch("app.services.transcription.SessionLocal", side_effect=lambda: self.Session()), \
              patch("app.services.transcription.os.path.exists", return_value=True), \
              patch("app.services.transcription.convert_to_wav"), \
              patch("app.services.transcription.get_whisper_model") as mock_whisper, \
@@ -241,12 +241,14 @@ class TestSemanticIndexing(unittest.TestCase):
             mock_whisper.return_value.transcribe.return_value = ([mock_seg], None)
 
             # Run transcription worker
-            process_meeting_transcription(meeting.id)
+            process_meeting_transcription(meeting_id)
 
-            # Meeting should be marked "ready" (NOT "failed") even though indexing failed
-            self.db.refresh(meeting)
-            self.assertEqual(meeting.status, "ready")
-            self.assertFalse(meeting.indexed)
+            # Re-fetch meeting using a fresh session
+            test_db = self.Session()
+            fetched_meeting = test_db.query(Meeting).filter(Meeting.id == meeting_id).first()
+            self.assertEqual(fetched_meeting.status, "ready")
+            self.assertFalse(fetched_meeting.indexed)
+            test_db.close()
 
 
 if __name__ == "__main__":
