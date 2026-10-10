@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE transcript_segments ADD COLUMN IF NOT EXISTS speaker TEXT;"))
             conn.execute(text("ALTER TABLE transcript_segments ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("UPDATE transcript_segments SET edited = FALSE WHERE edited IS NULL;"))
+            conn.execute(text("ALTER TABLE action_items ADD COLUMN IF NOT EXISTS deadline_date DATE;"))
             if engine.dialect.name == "postgresql":
                 conn.execute(text("SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users));"))
             conn.commit()

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, ForeignKey, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -12,6 +12,7 @@ class ActionItem(Base):
     task = Column(Text, nullable=False)
     assigned_to = Column(String, nullable=True)
     deadline_text = Column(String, nullable=True)
+    deadline_date = Column(Date, nullable=True)
     status = Column(String, default="pending", nullable=False)  # "pending", "done"
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
