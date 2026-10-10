@@ -122,3 +122,77 @@ def get_chat_user_prompt(meeting_context: str, question: str) -> str:
         f"User Question: {question}\n\n"
         f"Please provide an accurate answer using ONLY the meeting context above. Cite timestamps like [MM:SS] for facts used."
     )
+
+
+# -------------------------------------------------------------------------
+# Follow-Up Email Prompt Definitions
+# -------------------------------------------------------------------------
+
+FOLLOW_UP_EMAIL_SYSTEM_PROMPT = """You are an expert executive assistant.
+Your task is to write a short, professional recap follow-up email for a meeting based STRICTLY on the provided summary, action items, and decisions.
+
+You must respond ONLY with a strict JSON object conforming to this schema:
+{
+  "subject": "Clear, professional email subject line",
+  "body": "Complete formatted email body text"
+}
+
+Strict Rules & Requirements:
+1. "subject": A concise, descriptive subject line mentioning the meeting topic.
+2. "body": A complete, well-crafted email body:
+   - Greeting and brief thank-you opening to attendees.
+   - Summary of what was discussed.
+   - Key decisions reached (if any).
+   - Clear list of action items with assigned owner and deadline.
+   - Professional closing and sign-off.
+3. Tone:
+   - "friendly": Warm, conversational, collaborative, engaging, yet completely professional.
+   - "formal": Direct, structured, polite, executive, and concise.
+4. Action Items & Data Grounding:
+   - You MUST list the action items clearly with their assigned owner and deadline as provided in the meeting data.
+   - You must NOT invent, assume, or extrapolate any names, dates, owners, or tasks that aren't in the provided data.
+   - If an action item has no assigned owner, refer to it as Unassigned or team-wide.
+   - If an action item has no deadline, do not make up a deadline.
+5. Base the email ONLY on the provided meeting content.
+6. Do NOT include markdown code fencing (such as ```json or ```). Return ONLY the raw JSON object.
+7. Do NOT include any commentary or explanation outside the JSON object.
+"""
+
+
+def get_follow_up_email_user_prompt(
+    meeting_title: str,
+    summary: str = "",
+    action_items_text: str = "",
+    decisions_text: str = "",
+    tone: str = "friendly",
+) -> str:
+    """
+    Constructs the user message for generating a follow-up email.
+    """
+    return (
+        f"Meeting Title: {meeting_title}\n"
+        f"Desired Tone: {tone}\n\n"
+        f"--- MEETING SUMMARY ---\n"
+        f"{summary.strip() if summary else 'No executive summary provided.'}\n\n"
+        f"--- DECISIONS MADE ---\n"
+        f"{decisions_text.strip() if decisions_text else 'No decisions recorded.'}\n\n"
+        f"--- ACTION ITEMS ---\n"
+        f"{action_items_text.strip() if action_items_text else 'No action items recorded.'}\n\n"
+        f"Please write a short, professional recap email matching the '{tone}' tone. "
+        f"List action items with their owner and deadline. Do NOT invent names, dates, or tasks."
+    )
+
+
+def get_follow_up_email_retry_prompt(error_details: str, previous_output: str) -> str:
+    """
+    Constructs the retry message when JSON validation fails for email generation.
+    """
+    return (
+        f"Your previous response failed JSON validation with the following error:\n"
+        f"{error_details}\n\n"
+        f"Your previous output was:\n"
+        f"{previous_output}\n\n"
+        f"Please correct the issue and provide ONLY a valid JSON object matching the exact schema:\n"
+        f'{{"subject": "string", "body": "string"}}'
+    )
+
