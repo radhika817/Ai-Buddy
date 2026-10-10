@@ -269,11 +269,15 @@ def update_transcript_segment(
         if new_text != segment.text:
             segment.text = new_text
             segment.edited = True
+            meeting.indexed = False
 
     # Check if speaker is being updated
     if payload.speaker is not None:
         cleaned_speaker = payload.speaker.strip()
-        segment.speaker = cleaned_speaker if cleaned_speaker else None
+        new_speaker_val = cleaned_speaker if cleaned_speaker else None
+        if new_speaker_val != segment.speaker:
+            segment.speaker = new_speaker_val
+            meeting.indexed = False
 
     db.commit()
     db.refresh(segment)
@@ -608,5 +612,79 @@ def create_follow_up_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate follow-up email. Please try again.",
         )
+
+
+@router.post("/{meeting_id}/reindex")
+def reindex_meeting(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Deletes the old chunks for that meeting and rebuilds them (needed after transcript edits).
+    Owner only.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    if meeting.status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Meeting is not ready for indexing. Current status: '{meeting.status}'.",
+        )
+
+    try:
+        from app.services.embedding import index_meeting_transcript
+        chunks_count = index_meeting_transcript(meeting.id, db)
+        return {
+            "message": "Meeting reindexed successfully.",
+            "meeting_id": meeting.id,
+            "chunks_count": chunks_count,
+            "indexed": True,
+        }
+    except Exception as e:
+        logger.exception(f"Failed to reindex meeting {meeting_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reindex meeting: {str(e)}",
+        )
+
+
+@router.post("/index-all")
+def index_all_meetings(
+    force: bool = Query(default=False, description="If true, reindexes all ready meetings; if false, only indexes meetings where indexed is false"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    One-time or batch indexing endpoint for ready meetings belonging to the current user.
+    """
+    query = db.query(Meeting).filter(Meeting.user_id == current_user.id, Meeting.status == "ready")
+    if not force:
+        query = query.filter(Meeting.indexed == False)  # noqa: E712
+
+    meetings = query.order_by(Meeting.id.asc()).all()
+    results = []
+    total_chunks = 0
+    from app.services.embedding import index_meeting_transcript
+    for m in meetings:
+        try:
+            count = index_meeting_transcript(m.id, db)
+            total_chunks += count
+            results.append({"id": m.id, "title": m.title, "chunks_count": count, "status": "success"})
+        except Exception as e:
+            logger.error(f"Failed to index meeting {m.id}: {e}")
+            results.append({"id": m.id, "title": m.title, "error": str(e), "status": "failed"})
+
+    return {
+        "message": f"Processed {len(meetings)} meeting(s).",
+        "indexed_meetings_count": len([r for r in results if r["status"] == "success"]),
+        "total_chunks_created": total_chunks,
+        "results": results,
+    }
 
 
