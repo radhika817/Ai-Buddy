@@ -1,8 +1,20 @@
 import os
 import uuid
 import logging
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status
+from typing import List, Optional
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    Form,
+    BackgroundTasks,
+    status,
+    Query,
+    Body,
+    Response,
+)
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -21,7 +33,10 @@ from app.schemas.transcript import (
 from app.schemas.action_item import ActionItemOut
 from app.schemas.decision import DecisionOut
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.email import FollowUpEmailRequest, FollowUpEmailResponse
 from app.services.chat import build_meeting_context, ask_meeting_ai
+from app.services.email_draft import generate_follow_up_email
+from app.services.export import generate_meeting_markdown, sanitize_export_filename
 from app.services.summarization import GeminiRateLimitError
 from app.services.transcription import process_meeting_transcription
 
@@ -463,4 +478,135 @@ def chat_with_meeting(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate an answer from AI Buddy. Please try again.",
         )
+
+
+@router.get("/{meeting_id}/export")
+def export_meeting(
+    meeting_id: int,
+    format: str = Query("md", description="Export format, currently 'md' is supported."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Exports a meeting to a downloadable Markdown file (.md).
+    Only available to the owner of the meeting and only when status is 'ready'.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    if meeting.status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Meeting is not ready for export. Current status: '{meeting.status}'. Please wait until processing completes.",
+        )
+
+    if format.lower() != "md":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported export format '{format}'. Supported formats: 'md'.",
+        )
+
+    segments = (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.meeting_id == meeting.id)
+        .order_by(TranscriptSegment.start_time.asc())
+        .all()
+    )
+    action_items = (
+        db.query(ActionItem)
+        .filter(ActionItem.meeting_id == meeting.id)
+        .order_by(ActionItem.id.asc())
+        .all()
+    )
+    decisions = (
+        db.query(Decision)
+        .filter(Decision.meeting_id == meeting.id)
+        .order_by(Decision.id.asc())
+        .all()
+    )
+
+    markdown_content = generate_meeting_markdown(meeting, segments, action_items, decisions)
+    filename = sanitize_export_filename(meeting.title, meeting.id)
+
+    return Response(
+        content=markdown_content,
+        media_type="text/markdown",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.post("/{meeting_id}/follow-up-email", response_model=FollowUpEmailResponse)
+def create_follow_up_email(
+    meeting_id: int,
+    payload: FollowUpEmailRequest = Body(default_factory=FollowUpEmailRequest),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generates a follow-up email recap using Google Gemini based on the meeting's
+    summary, action items, and decisions.
+    Only available to the owner of the meeting and only when status is 'ready'.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found.",
+        )
+
+    if meeting.status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Meeting is not ready for follow-up email. Current status: '{meeting.status}'. Please wait until processing completes.",
+        )
+
+    action_items = (
+        db.query(ActionItem)
+        .filter(ActionItem.meeting_id == meeting.id)
+        .order_by(ActionItem.id.asc())
+        .all()
+    )
+    decisions = (
+        db.query(Decision)
+        .filter(Decision.meeting_id == meeting.id)
+        .order_by(Decision.id.asc())
+        .all()
+    )
+
+    try:
+        result = generate_follow_up_email(
+            meeting=meeting,
+            action_items=action_items,
+            decisions=decisions,
+            tone=payload.tone,
+        )
+        return FollowUpEmailResponse(
+            subject=result["subject"],
+            body=result["body"],
+        )
+    except GeminiRateLimitError as e:
+        logger.warning(f"Rate limit hit during follow-up email for meeting {meeting_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="AI Buddy is experiencing high demand right now. Please wait a few moments and try generating the email again.",
+        )
+    except ValueError as e:
+        logger.error(f"Configuration error during follow-up email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error generating follow-up email for meeting {meeting_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate follow-up email. Please try again.",
+        )
+
 
