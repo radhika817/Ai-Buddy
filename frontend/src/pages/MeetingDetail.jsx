@@ -22,6 +22,11 @@ import {
   Edit2,
   X,
   Users,
+  Download,
+  Mail,
+  Copy,
+  ExternalLink,
+  RotateCw,
 } from 'lucide-react';
 import api from '../services/api';
 import MeetingChat from '../components/MeetingChat';
@@ -195,6 +200,105 @@ export default function MeetingDetail() {
     } finally {
       setIsRenamingSpeaker(false);
     }
+  };
+
+  // Meeting export state
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportMarkdown = async () => {
+    if (!isReady) return;
+    try {
+      setExporting(true);
+      const res = await api.get(`/meetings/${id}/export?format=md`, {
+        responseType: 'blob',
+      });
+      let filename = `${meeting.title || 'meeting'}-export.md`;
+      const disposition = res.headers['content-disposition'];
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+
+      const blob = new Blob([res.data], { type: 'text/markdown;charset=utf-8' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      showToast('Meeting exported to Markdown successfully.');
+    } catch (err) {
+      console.error('Export error:', err);
+      showToast(err.response?.data?.detail || 'Failed to export meeting.', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Follow-up email modal state
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailTone, setEmailTone] = useState('friendly');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [copiedSubject, setCopiedSubject] = useState(false);
+  const [copiedBody, setCopiedBody] = useState(false);
+
+  const handleGenerateEmail = async (overrideTone) => {
+    const toneToUse = overrideTone || emailTone;
+    try {
+      setIsGeneratingEmail(true);
+      setEmailError('');
+      const res = await api.post(`/meetings/${id}/follow-up-email`, {
+        tone: toneToUse,
+      });
+      setEmailSubject(res.data.subject || '');
+      setEmailBody(res.data.body || '');
+      showToast('Follow-up email generated.');
+    } catch (err) {
+      console.error('Email generation error:', err);
+      const msg = err.response?.data?.detail || 'Failed to generate follow-up email.';
+      setEmailError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsGeneratingEmail(false);
+    }
+  };
+
+  const handleCopySubject = async () => {
+    if (!emailSubject) return;
+    try {
+      await navigator.clipboard.writeText(emailSubject);
+      setCopiedSubject(true);
+      setTimeout(() => setCopiedSubject(false), 2000);
+      showToast('Subject copied to clipboard.');
+    } catch (e) {
+      showToast('Failed to copy subject.', 'error');
+    }
+  };
+
+  const handleCopyBody = async () => {
+    if (!emailBody) return;
+    try {
+      await navigator.clipboard.writeText(emailBody);
+      setCopiedBody(true);
+      setTimeout(() => setCopiedBody(false), 2000);
+      showToast('Email body copied to clipboard.');
+    } catch (e) {
+      showToast('Failed to copy email body.', 'error');
+    }
+  };
+
+  const getMailtoLink = () => {
+    const subjectParam = encodeURIComponent(emailSubject || '');
+    const bodyParam = encodeURIComponent(emailBody || '');
+    return `mailto:?subject=${subjectParam}&body=${bodyParam}`;
   };
 
   // Automatically default to Summary tab when the meeting is ready, unless the user manually picked a tab
