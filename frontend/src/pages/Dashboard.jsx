@@ -14,7 +14,8 @@ import {
   AlertCircle,
 
   FileVideo,
-  Sparkles
+  Sparkles,
+  Bot,
 } from 'lucide-react';
 import api from '../services/api';
 

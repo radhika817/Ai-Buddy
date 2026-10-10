@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Upload from './pages/Upload';
 import MeetingDetail from './pages/MeetingDetail';
+import CrossMeetingChat from './pages/CrossMeetingChat';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -45,6 +46,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute>
                 <Upload />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <CrossMeetingChat />
               </ProtectedRoute>
             }
           />
