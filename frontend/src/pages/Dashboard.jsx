@@ -200,8 +200,41 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
+      {/* Ask Across All Meetings Shortcut Card */}
+      <motion.div
+        whileHover={{ y: -2 }}
+        className="mt-6 p-4 sm:p-5 bg-gradient-to-r from-accent-950/40 via-slate-900/80 to-slate-900/60 border border-accent-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-accent-500/5"
+      >
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-accent-500/10 border border-accent-500/20 text-accent-400 flex items-center justify-center shrink-0 shadow-sm">
+            <Bot className="w-5 h-5 stroke-[2.2]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-white">
+                Ask across all meetings
+              </h3>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-accent-500/10 text-accent-400 border border-accent-500/20">
+                Cross-Meeting AI
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Query decisions, open action items, and topic changes across your team's entire meeting history.
+            </p>
+          </div>
+        </div>
+
+        <Link
+          to="/chat"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-accent-500 hover:bg-accent-400 text-slate-950 font-semibold rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-accent-500/20 shrink-0 cursor-pointer"
+        >
+          <span>Ask AI Buddy</span>
+          <ArrowUpRight className="w-4 h-4 stroke-[2.2]" />
+        </Link>
+      </motion.div>
+
       {/* Section Header with Search */}
-      <div className="mt-12 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="mt-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-xl font-bold text-white">Your Meetings</h2>
           <p className="text-xs text-slate-400 mt-0.5">Click any meeting card to view details</p>
