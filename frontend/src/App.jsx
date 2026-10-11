@@ -8,6 +8,7 @@ import Upload from './pages/Upload';
 import MeetingDetail from './pages/MeetingDetail';
 import CrossMeetingChat from './pages/CrossMeetingChat';
 import Tasks from './pages/Tasks';
+import LandingPage from './pages/LandingPage';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -15,6 +16,14 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
   return children;
+}
+
+function RootRoute() {
+  const token = localStorage.getItem('token');
+  if (token) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <LandingPage />;
 }
 
 function AnimatedRoutes() {
@@ -31,15 +40,15 @@ function AnimatedRoutes() {
         className="w-full flex-1"
       >
         <Routes location={location}>
+          <Route path="/" element={<RootRoute />} />
           <Route
-            path="/"
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <Dashboard />
               </ProtectedRoute>
             }
           />
-          <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route
@@ -81,15 +90,31 @@ function AnimatedRoutes() {
   );
 }
 
+function AppLayout() {
+  const location = useLocation();
+  const token = localStorage.getItem('token');
+  const isLanding = location.pathname === '/' && !token;
+
+  return (
+    <div
+      className={`min-h-screen flex flex-col ${
+        isLanding
+          ? 'bg-[#FBF9F5] text-stone-900'
+          : 'bg-background text-slate-100 selection:bg-accent-500/20 selection:text-accent-300'
+      }`}
+    >
+      {!isLanding && <Navbar />}
+      <main className="flex-1 flex flex-col">
+        <AnimatedRoutes />
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-background text-slate-100 flex flex-col selection:bg-accent-500/20 selection:text-accent-300">
-        <Navbar />
-        <main className="flex-1 flex flex-col">
-          <AnimatedRoutes />
-        </main>
-      </div>
+      <AppLayout />
     </BrowserRouter>
   );
 }
