@@ -66,7 +66,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-slate-800/80 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Logo / Brand Name */}
-        <NavLink to="/" className="flex items-center gap-3 group">
+        <NavLink to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-3 group">
           <motion.div
             whileHover={{ scale: 1.05, rotate: 3 }}
             whileTap={{ scale: 0.95 }}
@@ -88,7 +88,7 @@ export default function Navbar() {
         {/* Desktop Navigation Links */}
         {isAuthenticated && (
           <nav className="hidden md:flex items-center gap-1.5">
-            <NavLink to="/" className={navLinkClass}>
+            <NavLink to="/dashboard" className={navLinkClass}>
               <LayoutDashboard className="w-4 h-4 opacity-70" />
               Dashboard
             </NavLink>
@@ -175,7 +175,7 @@ export default function Navbar() {
           >
             {isAuthenticated ? (
               <>
-                <NavLink to="/" onClick={() => setMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                <NavLink to="/dashboard" onClick={() => setMobileMenuOpen(false)} className={mobileNavLinkClass}>
                   <LayoutDashboard className="w-5 h-5" />
                   Dashboard
                 </NavLink>
