@@ -17,7 +17,7 @@ export default function Register() {
   // If already logged in, redirect to Dashboard
   useEffect(() => {
     if (localStorage.getItem('token')) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [navigate]);
 
