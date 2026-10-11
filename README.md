@@ -160,8 +160,11 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate    # On Windows: venv\Scripts\activate
 
-# Install backend dependencies
-pip install -r requirements.txt
+# For full local development (includes local faster-whisper STT & FFmpeg):
+pip install -r requirements-local.txt
+
+# For lightweight deployment without audio processing:
+# pip install -r requirements.txt
 
 # Configure environment variables
 cp .env.example .env
@@ -172,7 +175,10 @@ Edit `backend/.env` with your credentials:
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_buddy
 SECRET_KEY=your-secure-secret-key-here
 GEMINI_API_KEY=your-gemini-api-key-here
-GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-3.5-flash-lite
+FRONTEND_URL=http://localhost:5173
+ENABLE_PROCESSING=true
+ENABLE_EMBEDDINGS=true
 ```
 
 Run the FastAPI development server:
@@ -189,16 +195,13 @@ uvicorn main:app --reload --port 8000
 In a new terminal window:
 ```bash
 cd frontend
-  
+
 # Install Node dependencies
 npm install
-
 
 # Configure environment variables
 cp .env.example .env
 ```
-
-
 
 Edit `frontend/.env` if using a custom backend port:
 ```ini
@@ -214,11 +217,20 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
+### 4. Seed Demo User Account
+
+To create a clean demo user account for testing:
+```bash
+DEMO_PASSWORD="DemoPassword123!" python scripts/seed_demo.py
+```
+Sign in via `http://localhost:5173/login` using `demo@example.com` and your chosen password.
+
+---
+
 ## 🗺️ Roadmap & Progress
 
 - [x] **Architecture & System Design**
   - [x] End-to-end pipeline design documented in [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md)
-  
   - [x] Database schema & API specifications drafted
 - [x] **Frontend Core UI & Flow**
   - [x] Responsive layout with dark modern theme and Inter typography
@@ -226,21 +238,27 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
   - [x] Animated page routing with Framer Motion
   - [x] Dashboard with meeting cards, filter tabs, search, and summary stats
   - [x] Interactive Meeting Detail view (Executive Summary, Searchable Transcript, Action Items, Decisions, AI Q&A)
-  - [x] Drag-and-drop Upload flow with progress feedback
+  - [x] Drag-and-drop Upload flow with progress feedback and demo mode detection
   - [x] Login & Register authentication screens
-- [ ] **Backend MVP Pipeline**
+  - [x] Tasks Management page (`/tasks`) with filter chips, assignee dropdown, and animated KPI counters
+  - [x] Cross-Meeting Q&A chat page (`/chat`) with suggested questions and citations
+- [x] **Backend MVP Pipeline**
   - [x] FastAPI base application with CORS & health endpoint
   - [x] SQLAlchemy database configuration & settings management
-  - [ ] User authentication & JWT endpoints (`/auth/register`, `/auth/login`)
-  - [ ] Meeting recording upload handler (`/meetings`)
-  - [ ] Speech-to-text background worker (OpenAI Whisper)
-  - [ ] Structured LLM extraction for summaries, action items, and decisions
-- [ ] **Phase 3 — Long-Term Memory (RAG)**
-  - [ ] Semantic chunking and vector storage with `pgvector`
-  - [ ] Cross-meeting search and contextual question answering
-- [ ] **Phase 4 — Integrations & Polish**
-  - [ ] Email draft generation for meeting recaps
-  - [ ] Calendar sync & export to Markdown/PDF
+  - [x] User authentication & JWT endpoints (`/auth/register`, `/auth/login`, `/auth/me`)
+  - [x] Meeting recording upload handler (`/meetings`) with validation & 503 demo switch
+  - [x] Speech-to-text background worker (faster-whisper)
+  - [x] Structured LLM extraction for summaries, action items, and decisions (Google Gemini)
+- [x] **Phase 3 — Long-Term Memory (RAG)**
+  - [x] Semantic chunking and vector storage with `pgvector` & `fastembed`
+  - [x] Hybrid search (semantic + ILIKE keyword) across meeting transcripts
+  - [x] Cross-meeting conversational Q&A (`POST /chat`)
+- [x] **Phase 4 — Integrations & Polish**
+  - [x] Email draft generation for meeting recaps (`POST /meetings/{id}/follow-up-email`)
+  - [x] Export to Markdown (`GET /meetings/{id}/export?format=md`)
+  - [x] Transcript editing & global speaker rename
+  - [x] Rule-based deadline parser for action items relative to meeting date
+
 
 ---
 

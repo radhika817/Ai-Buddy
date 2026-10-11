@@ -73,13 +73,15 @@ To allow your new Vercel domain to communicate with the Render backend:
 ## 🧪 Verifying the Live App
 
 1. Open your live Vercel URL in your browser.
-2. The Dashboard should load your meetings directly from the live Render backend.
-3. Click **Upload**, enter a meeting title, and upload a test audio/video file.
-4. Verify that:
-   - Upload progress bar animates to 100%.
-   - You are redirected to the Dashboard.
-   - The meeting card appears with an **"Uploaded"** badge.
-   - Clicking the card opens the Meeting Detail view.
+2. Sign in with the demo credentials created via `scripts/seed_demo.py` (e.g. `demo@example.com`).
+3. The Dashboard will load your meetings directly from the live Render backend.
+4. Click **Upload**:
+   - In demo mode (`ENABLE_PROCESSING=false`), the Upload page displays a prominent **"Demo Mode Active"** banner informing users that audio processing is disabled in the cloud demo to stay within free-tier limits.
+   - If an upload is submitted, a friendly notice banner is displayed stating: *"Uploads and processing are disabled in this demo. Run the project locally to process recordings."*
+5. Explore other features:
+   - View transcripts, summaries, and decisions on existing meetings.
+   - Test the **Tasks** page (`/tasks`) with filters and status toggles.
+   - Test **Ask AI Buddy** (`/chat`) for cross-meeting Q&A grounded on meeting memory.
 
 ---
 

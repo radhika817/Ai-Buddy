@@ -24,3 +24,16 @@ dist/
 backend/uploads/
 backend/uploads
 uploads/
+*.wav
+*.mp3
+*.mp4
+*.webm
+*.m4a
+*.mkv
+
+# AI Model Caches
+.cache/
+model_cache/
+fastembed_cache/
+huggingface/
+whisper_cache/

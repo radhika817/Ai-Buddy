@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -8,7 +8,8 @@ import {
   Sparkles,
   AlertCircle,
   FileText,
-  Loader2
+  Loader2,
+  Info,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -23,6 +24,23 @@ export default function Upload() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoBanner, setDemoBanner] = useState('');
+
+  // Check backend health to detect if demo mode is enabled
+  useEffect(() => {
+    const checkDemoMode = async () => {
+      try {
+        const res = await api.get('/health');
+        if (res.data?.processing_enabled === false) {
+          setDemoMode(true);
+        }
+      } catch (err) {
+        // Silently continue if health endpoint is unreachable
+      }
+    };
+    checkDemoMode();
+  }, []);
 
   const validateAndSetFile = (file) => {
     setErrorMessage('');
@@ -107,12 +125,20 @@ export default function Upload() {
       // Redirect to Dashboard on success
       navigate('/');
     } catch (err) {
-      const detail =
-        err.response?.data?.detail ||
-        (Array.isArray(err.response?.data)
-          ? err.response.data[0]?.msg
-          : 'Failed to upload meeting. Please check server connection.');
-      setErrorMessage(detail);
+      if (err.response?.status === 503) {
+        const detail =
+          err.response?.data?.detail ||
+          'Uploads and processing are disabled in this demo. Run the project locally to process recordings.';
+        setDemoBanner(detail);
+        setErrorMessage('');
+      } else {
+        const detail =
+          err.response?.data?.detail ||
+          (Array.isArray(err.response?.data)
+            ? err.response.data[0]?.msg
+            : 'Failed to upload meeting. Please check server connection.');
+        setErrorMessage(detail);
+      }
       setUploading(false);
     }
   };
@@ -132,6 +158,35 @@ export default function Upload() {
           Upload audio or video files. AI Buddy transcribes conversations and automatically identifies action items, assignees, and key decisions.
         </p>
       </div>
+
+      {/* Demo Mode Notice */}
+      {demoMode && (
+        <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3.5 text-amber-200 text-sm">
+          <Info className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-amber-300">Demo Mode Active</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Cloud Web Service
+              </span>
+            </div>
+            <p className="text-xs text-amber-300/80 mt-1 leading-relaxed">
+              New audio/video upload and background processing are switched off in this free demo deployment to stay within free-tier resource limits. You can explore all existing meetings, transcripts, action items, tasks, and cross-meeting AI chat! To transcribe and process your own audio files, run AI Buddy locally.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Friendly 503 Banner */}
+      {demoBanner && (
+        <div className="mb-6 p-4 bg-sky-500/10 border border-sky-500/30 rounded-2xl flex items-start gap-3.5 text-sky-200 text-sm">
+          <Info className="w-5 h-5 shrink-0 text-sky-400 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-semibold text-sky-300">Demo Environment Notice</span>
+            <p className="text-xs text-sky-300/90 mt-1 leading-relaxed">{demoBanner}</p>
+          </div>
+        </div>
+      )}
 
       {/* Error Banner */}
       {errorMessage && (
