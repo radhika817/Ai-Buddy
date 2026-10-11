@@ -18,7 +18,7 @@ export default function Login() {
   // If already logged in, redirect to Dashboard
   useEffect(() => {
     if (localStorage.getItem('token')) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [navigate]);
 
@@ -47,7 +47,7 @@ export default function Login() {
       // Notify Navbar and other components of auth state change
       window.dispatchEvent(new Event('auth-change'));
 
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       const detail = err.response?.data?.detail;
       const errorMsg =
