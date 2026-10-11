@@ -42,8 +42,12 @@ Expand the **Environment Variables** accordion and add the following variable:
 | Key | Value | Description |
 |---|---|---|
 | `VITE_API_URL` | `https://<YOUR_RENDER_BACKEND>.onrender.com` | Your live Render backend URL **without** a trailing slash |
+| `VITE_DEMO_EMAIL` | *(Optional)* `demo@example.com` | Email for one-click "Try the demo" button on the landing page |
+| `VITE_DEMO_PASSWORD` | *(Optional)* `DemoPassword123!` | Password for one-click "Try the demo" button on the landing page |
 
-> **Note**: Vite bakes environment variables prefixed with `VITE_` into the static JavaScript bundle at build time. Whenever you change `VITE_API_URL`, trigger a redeploy on Vercel.
+> **Security & Privacy Note**: The demo account configured via `VITE_DEMO_EMAIL` and `VITE_DEMO_PASSWORD` will be accessible to visitors of the public landing page. Ensure this account contains **only sample or practice meetings**, never private or sensitive recordings.
+>
+> **Note**: Vite bakes environment variables prefixed with `VITE_` into the static JavaScript bundle at build time. Whenever you change any `VITE_*` variables, trigger a redeploy on Vercel.
 
 ---
 
