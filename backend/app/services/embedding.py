@@ -3,7 +3,6 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from fastembed import TextEmbedding
 
 from app.core.config import settings
 from app.models.meeting import Meeting
@@ -13,16 +12,17 @@ from app.models.transcript_chunk import TranscriptChunk
 logger = logging.getLogger(__name__)
 
 # Global singleton embedding model instance (loaded once, reused across requests)
-_embedding_model: Optional[TextEmbedding] = None
+_embedding_model = None
 
 
-def get_embedding_model() -> TextEmbedding:
+def get_embedding_model():
     """
     Returns the singleton TextEmbedding instance.
     Loads the model on first call and caches it in memory.
     """
     global _embedding_model
     if _embedding_model is None:
+        from fastembed import TextEmbedding
         logger.info(f"Loading FastEmbed model: '{settings.EMBEDDING_MODEL}' ({settings.EMBEDDING_DIM} dims)...")
         _embedding_model = TextEmbedding(model_name=settings.EMBEDDING_MODEL)
         logger.info(f"FastEmbed model '{settings.EMBEDDING_MODEL}' loaded successfully.")
@@ -145,6 +145,12 @@ def index_meeting_transcript(meeting_id: int, db: Session) -> int:
     if not meeting:
         raise ValueError(f"Meeting {meeting_id} not found.")
 
+    if not settings.ENABLE_EMBEDDINGS:
+        logger.info(f"Embeddings disabled (ENABLE_EMBEDDINGS=False); skipping indexing for meeting {meeting_id}.")
+        meeting.indexed = False
+        db.commit()
+        return 0
+
     # 1. Delete old chunks for this meeting
     db.query(TranscriptChunk).filter(TranscriptChunk.meeting_id == meeting.id).delete()
     db.flush()
@@ -208,6 +214,11 @@ def search_transcript_chunks(
     cleaned_query = (query or "").strip()
     if not cleaned_query:
         return []
+
+    # When embeddings are disabled, fall back to keyword matching only
+    if not settings.ENABLE_EMBEDDINGS:
+        logger.info("Embeddings disabled (ENABLE_EMBEDDINGS=False); falling back to keyword search.")
+        return keyword_search_chunks(db=db, user_id=user_id, query=cleaned_query, limit=limit)
 
     query_vector = generate_query_embedding(cleaned_query)
 
@@ -360,6 +371,16 @@ def hybrid_search_chunks(
     and start_time so the model can observe chronological progression.
     """
     from datetime import datetime, timezone
+
+    # When embeddings are disabled, fall back directly to keyword search
+    if not settings.ENABLE_EMBEDDINGS:
+        logger.info("Embeddings disabled (ENABLE_EMBEDDINGS=False); falling back to keyword search only.")
+        return keyword_search_chunks(
+            db=db,
+            user_id=user_id,
+            query=query,
+            limit=max(semantic_limit, keyword_limit),
+        )
 
     semantic_results = search_transcript_chunks(
         db=db,

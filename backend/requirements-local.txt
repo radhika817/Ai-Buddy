@@ -1,0 +1,4 @@
+# Local development requirements: includes local Whisper STT and FFmpeg binary
+-r requirements.txt
+faster-whisper>=1.0.0
+imageio-ffmpeg>=0.5.0

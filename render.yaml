@@ -12,7 +12,9 @@ services:
         generateValue: true
       - key: GEMINI_API_KEY
         sync: false
-      - key: GEMINI_MODEL
-        value: gemini-3.5-flash-lite
       - key: FRONTEND_URL
         sync: false
+      - key: ENABLE_PROCESSING
+        value: "false"
+      - key: ENABLE_EMBEDDINGS
+        value: "false"

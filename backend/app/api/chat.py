@@ -49,13 +49,20 @@ def cross_meeting_chat(
             detail="Too many chat requests. Please wait a minute before asking more questions.",
         )
 
-    # 2. Check if user has any indexed meetings
+    # 2. Check if user has any indexed meetings or transcript chunks
+    from app.models.transcript_chunk import TranscriptChunk
+
     indexed_count = (
         db.query(Meeting)
         .filter(Meeting.user_id == current_user.id, Meeting.indexed == True)
         .count()
     )
-    if indexed_count == 0:
+    chunks_count = (
+        db.query(TranscriptChunk)
+        .filter(TranscriptChunk.user_id == current_user.id)
+        .count()
+    )
+    if indexed_count == 0 and chunks_count == 0:
         return CrossMeetingChatResponse(
             answer="You don't have any indexed meetings yet. Please upload and index a meeting first so I can search across your team discussions.",
             sources=[],
