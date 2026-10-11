@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIM: int = 384
+    ENABLE_PROCESSING: bool = True
+    ENABLE_EMBEDDINGS: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",

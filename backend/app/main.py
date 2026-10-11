@@ -38,6 +38,8 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE transcript_segments ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("UPDATE transcript_segments SET edited = FALSE WHERE edited IS NULL;"))
             conn.execute(text("ALTER TABLE action_items ADD COLUMN IF NOT EXISTS deadline_date DATE;"))
+            # Recover meetings that were interrupted by a server restart or crash
+            conn.execute(text("UPDATE meetings SET status = 'failed', error_message = 'Server restarted while processing. Please re-upload the recording.' WHERE status IN ('uploaded', 'transcribing', 'analyzing');"))
             if engine.dialect.name == "postgresql":
                 conn.execute(text("SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users));"))
             conn.commit()
@@ -73,4 +75,8 @@ app.include_router(tasks_router)
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "processing_enabled": settings.ENABLE_PROCESSING,
+        "embeddings_enabled": settings.ENABLE_EMBEDDINGS,
+    }

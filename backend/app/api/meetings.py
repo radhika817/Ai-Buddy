@@ -35,10 +35,10 @@ from app.schemas.decision import DecisionOut
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.email import FollowUpEmailRequest, FollowUpEmailResponse
 from app.services.chat import build_meeting_context, ask_meeting_ai
+from app.core.config import settings
 from app.services.email_draft import generate_follow_up_email
 from app.services.export import generate_meeting_markdown, sanitize_export_filename
 from app.services.summarization import GeminiRateLimitError
-from app.services.transcription import process_meeting_transcription
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,13 @@ async def upload_meeting(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid file type .{ext}. Allowed formats: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+    # When demo mode is active, uploads and heavy background processing are disabled
+    if not settings.ENABLE_PROCESSING:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Uploads and processing are disabled in this demo. Run the project locally to process recordings.",
         )
 
     # Ensure uploads directory exists
@@ -134,7 +141,8 @@ async def upload_meeting(
     db.commit()
     db.refresh(new_meeting)
 
-    # Start asynchronous background transcription
+    # Start asynchronous background transcription lazily
+    from app.services.transcription import process_meeting_transcription
     background_tasks.add_task(process_meeting_transcription, new_meeting.id)
 
     return new_meeting
@@ -626,6 +634,12 @@ def reindex_meeting(
     Deletes the old chunks for that meeting and rebuilds them (needed after transcript edits).
     Owner only.
     """
+    if not settings.ENABLE_PROCESSING or not settings.ENABLE_EMBEDDINGS:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Uploads and processing are disabled in this demo. Run the project locally to process recordings.",
+        )
+
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == current_user.id).first()
     if not meeting:
         raise HTTPException(
@@ -665,6 +679,12 @@ def index_all_meetings(
     """
     One-time or batch indexing endpoint for ready meetings belonging to the current user.
     """
+    if not settings.ENABLE_PROCESSING or not settings.ENABLE_EMBEDDINGS:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Uploads and processing are disabled in this demo. Run the project locally to process recordings.",
+        )
+
     query = db.query(Meeting).filter(Meeting.user_id == current_user.id, Meeting.status == "ready")
     if not force:
         query = query.filter(Meeting.indexed == False)  # noqa: E712
