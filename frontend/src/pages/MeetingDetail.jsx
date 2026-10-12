@@ -1364,21 +1364,26 @@ export default function MeetingDetail() {
                           className="p-4 px-5 flex items-center justify-between gap-4"
                         >
                           <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                            <input
-                              id={`item-${item.id}`}
-                              type="checkbox"
-                              checked={isDone}
-                              onChange={() => handleToggleActionItem(item.id, item.status)}
-                              className="w-5 h-5 rounded-[6px] border-[1.5px] border-hairline text-ink focus:ring-0 cursor-pointer shrink-0"
-                            />
-                            <label
-                              htmlFor={`item-${item.id}`}
-                              className={`font-sans text-sm sm:text-base text-ink cursor-pointer select-none truncate ${
-                                isDone ? 'line-through text-muted' : ''
+                            <button
+                              type="button"
+                              role="checkbox"
+                              aria-checked={isDone}
+                              onClick={() => handleToggleActionItem(item.id, item.status)}
+                              className={`w-5 h-5 rounded-[6px] border-[1.5px] flex items-center justify-center shrink-0 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
+                                isDone ? 'bg-ink border-ink' : 'bg-transparent border-hairline hover:border-ink'
+                              }`}
+                              aria-label={`Mark task "${item.task}" as ${isDone ? 'pending' : 'done'}`}
+                            >
+                              <AnimatedCheckmark checked={isDone} />
+                            </button>
+                            <span
+                              onClick={() => handleToggleActionItem(item.id, item.status)}
+                              className={`font-sans text-sm sm:text-base leading-snug cursor-pointer select-none truncate transition-colors duration-150 ${
+                                isDone ? 'line-through text-muted' : 'text-ink font-medium'
                               }`}
                             >
                               {item.task}
-                            </label>
+                            </span>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <span
@@ -1441,6 +1446,8 @@ export default function MeetingDetail() {
                 )}
               </div>
             )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
 
@@ -1465,260 +1472,294 @@ export default function MeetingDetail() {
       </datalist>
 
       {/* Batch Rename Speaker Modal */}
-      {isRenameSpeakerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 shadow-none">
-          <div className="bg-white border border-hairline rounded-[20px] p-6 w-full max-w-md shadow-none flex flex-col gap-5">
-            <div className="flex items-center justify-between pb-3 border-b border-hairline">
-              <h3 className="font-display font-bold text-base text-ink flex items-center gap-2">
-                <Users className="w-4 h-4 text-ink" />
-                <span>Rename Speaker Everywhere</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsRenameSpeakerOpen(false)}
-                className="p-1 rounded text-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
-                aria-label="Close modal"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block font-sans text-xs font-medium text-muted mb-1.5">
-                  Select Existing Speaker
-                </label>
-                <select
-                  value={renameOldSpeaker}
-                  onChange={(e) => setRenameOldSpeaker(e.target.value)}
-                  className="w-full h-11 px-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink focus:outline-none focus:border-ink"
-                >
-                  {uniqueSpeakers.map((spk) => (
-                    <option key={spk} value={spk}>
-                      {spk} ({segments.filter((s) => s.speaker === spk).length} segment{segments.filter((s) => s.speaker === spk).length === 1 ? '' : 's'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-sans text-xs font-medium text-muted mb-1.5">
-                  New Speaker Name
-                </label>
-                <input
-                  type="text"
-                  value={renameNewSpeaker}
-                  onChange={(e) => setRenameNewSpeaker(e.target.value)}
-                  placeholder="e.g. Radhika"
-                  maxLength={100}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleBatchRenameSpeaker();
-                  }}
-                  className="w-full h-11 px-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-ink"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsRenameSpeakerOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleBatchRenameSpeaker}
-                disabled={isRenamingSpeaker || !renameNewSpeaker.trim() || !renameOldSpeaker}
-              >
-                {isRenamingSpeaker ? 'Renaming...' : 'Rename Everywhere'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Follow-up Email Modal */}
-      {isEmailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 shadow-none">
-          <div className="bg-white border border-hairline rounded-[20px] p-6 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-none">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-hairline shrink-0">
-              <div>
-                <h3 className="font-display font-bold text-lg text-ink">
-                  Draft Follow-Up Email
+      <AnimatePresence>
+        {isRenameSpeakerOpen && (
+          <motion.div
+            variants={modalOverlay}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            onClick={() => setIsRenameSpeakerOpen(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 shadow-none"
+          >
+            <motion.div
+              variants={modalPanel}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white border border-hairline rounded-[20px] p-6 w-full max-w-md shadow-none flex flex-col gap-5"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-hairline">
+                <h3 className="font-display font-bold text-base text-ink flex items-center gap-2">
+                  <Users className="w-4 h-4 text-ink" />
+                  <span>Rename Speaker Everywhere</span>
                 </h3>
-                <p className="font-sans text-xs text-muted">
-                  Recap meeting summary, action items, and decisions
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsRenameSpeakerOpen(false)}
+                  className="p-1 rounded text-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                  aria-label="Close modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsEmailModalOpen(false)}
-                className="p-1 rounded text-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
-                aria-label="Close modal"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            {/* Modal Content */}
-            <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
-              {/* Tone Toggle & Generate Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-frame border border-hairline rounded-card">
-                <div className="flex items-center gap-2">
-                  <span className="font-sans text-xs font-semibold text-muted">Tone:</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmailTone('friendly');
-                        if (emailSubject || emailBody) handleGenerateEmail('friendly');
-                      }}
-                      className={`px-3.5 py-1 rounded-pill font-sans text-xs font-medium transition-colors ${
-                        emailTone === 'friendly'
-                          ? 'bg-ink text-frame'
-                          : 'border border-hairline text-muted hover:text-ink bg-white'
-                      }`}
-                    >
-                      Friendly
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmailTone('formal');
-                        if (emailSubject || emailBody) handleGenerateEmail('formal');
-                      }}
-                      className={`px-3.5 py-1 rounded-pill font-sans text-xs font-medium transition-colors ${
-                        emailTone === 'formal'
-                          ? 'bg-ink text-frame'
-                          : 'border border-hairline text-muted hover:text-ink bg-white'
-                      }`}
-                    >
-                      Formal
-                    </button>
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-sans text-xs font-medium text-muted mb-1.5">
+                    Select Existing Speaker
+                  </label>
+                  <select
+                    value={renameOldSpeaker}
+                    onChange={(e) => setRenameOldSpeaker(e.target.value)}
+                    className="w-full h-11 px-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink focus:outline-none focus:border-ink"
+                  >
+                    {uniqueSpeakers.map((spk) => (
+                      <option key={spk} value={spk}>
+                        {spk} ({segments.filter((s) => s.speaker === spk).length} segment{segments.filter((s) => s.speaker === spk).length === 1 ? '' : 's'})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
+                <div>
+                  <label className="block font-sans text-xs font-medium text-muted mb-1.5">
+                    New Speaker Name
+                  </label>
+                  <input
+                    type="text"
+                    value={renameNewSpeaker}
+                    onChange={(e) => setRenameNewSpeaker(e.target.value)}
+                    placeholder="e.g. Radhika"
+                    maxLength={100}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleBatchRenameSpeaker();
+                    }}
+                    className="w-full h-11 px-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-ink"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsRenameSpeakerOpen(false)}
+                >
+                  Cancel
+                </Button>
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => handleGenerateEmail()}
-                  disabled={isGeneratingEmail}
+                  onClick={handleBatchRenameSpeaker}
+                  disabled={isRenamingSpeaker || !renameNewSpeaker.trim() || !renameOldSpeaker}
                 >
-                  {isGeneratingEmail ? 'Generating with Gemini...' : emailSubject || emailBody ? 'Regenerate' : 'Generate'}
+                  {isRenamingSpeaker ? 'Renaming...' : 'Rename Everywhere'}
                 </Button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              {/* Error Alert */}
-              {emailError && (
-                <div className="p-3 bg-status-failed-bg border border-status-failed-text/20 rounded-xl text-status-failed-text font-sans text-xs">
-                  {emailError}
+      {/* Follow-up Email Modal */}
+      <AnimatePresence>
+        {isEmailModalOpen && (
+          <motion.div
+            variants={modalOverlay}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            onClick={() => setIsEmailModalOpen(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 shadow-none"
+          >
+            <motion.div
+              variants={modalPanel}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white border border-hairline rounded-[20px] p-6 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-none"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-hairline shrink-0">
+                <div>
+                  <h3 className="font-display font-bold text-lg text-ink">
+                    Draft Follow-Up Email
+                  </h3>
+                  <p className="font-sans text-xs text-muted">
+                    Recap meeting summary, action items, and decisions
+                  </p>
                 </div>
-              )}
-
-              {/* Subject Field */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="font-sans text-xs font-medium text-ink">Subject</label>
-                  {emailSubject && (
-                    <button
-                      type="button"
-                      onClick={handleCopySubject}
-                      className="font-sans text-xs text-muted hover:text-ink flex items-center gap-1 transition-colors"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>{copiedSubject ? 'Copied!' : 'Copy Subject'}</span>
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  placeholder="Subject will appear here..."
-                  className="w-full h-11 px-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-ink"
-                />
+                <button
+                  type="button"
+                  onClick={() => setIsEmailModalOpen(false)}
+                  className="p-1 rounded text-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                  aria-label="Close modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              {/* Body Field */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="font-sans text-xs font-medium text-ink">Email Body</label>
-                  {emailBody && (
-                    <button
-                      type="button"
-                      onClick={handleCopyBody}
-                      className="font-sans text-xs text-muted hover:text-ink flex items-center gap-1 transition-colors"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>{copiedBody ? 'Copied!' : 'Copy Body'}</span>
-                    </button>
-                  )}
-                </div>
-                <textarea
-                  rows={9}
-                  value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  placeholder="Email body will appear here..."
-                  className="w-full p-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-ink leading-relaxed resize-y"
-                />
-              </div>
-            </div>
+              {/* Modal Content */}
+              <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
+                {/* Tone Toggle & Generate Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-frame border border-hairline rounded-card">
+                  <div className="flex items-center gap-2">
+                    <span className="font-sans text-xs font-semibold text-muted">Tone:</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmailTone('friendly');
+                          if (emailSubject || emailBody) handleGenerateEmail('friendly');
+                        }}
+                        className={`px-3.5 py-1 rounded-pill font-sans text-xs font-medium transition-colors ${
+                          emailTone === 'friendly'
+                            ? 'bg-ink text-frame'
+                            : 'border border-hairline text-muted hover:text-ink bg-white'
+                        }`}
+                      >
+                        Friendly
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmailTone('formal');
+                          if (emailSubject || emailBody) handleGenerateEmail('formal');
+                        }}
+                        className={`px-3.5 py-1 rounded-pill font-sans text-xs font-medium transition-colors ${
+                          emailTone === 'formal'
+                            ? 'bg-ink text-frame'
+                            : 'border border-hairline text-muted hover:text-ink bg-white'
+                        }`}
+                      >
+                        Formal
+                      </button>
+                    </div>
+                  </div>
 
-            {/* Modal Footer */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-hairline shrink-0">
-              <div>
-                {(emailSubject || emailBody) && (
-                  <a
-                    href={getMailtoLink()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 font-sans text-xs font-semibold text-ink hover:underline decoration-hairline underline-offset-4"
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleGenerateEmail()}
+                    disabled={isGeneratingEmail}
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open in email app</span>
-                  </a>
+                    {isGeneratingEmail ? 'Generating with Gemini...' : emailSubject || emailBody ? 'Regenerate' : 'Generate'}
+                  </Button>
+                </div>
+
+                {/* Error Alert */}
+                {emailError && (
+                  <div className="p-3 bg-status-failed-bg border border-status-failed-text/20 rounded-xl text-status-failed-text font-sans text-xs">
+                    {emailError}
+                  </div>
                 )}
+
+                {/* Subject Field */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="font-sans text-xs font-medium text-ink">Subject</label>
+                    {emailSubject && (
+                      <button
+                        type="button"
+                        onClick={handleCopySubject}
+                        className="font-sans text-xs text-muted hover:text-ink flex items-center gap-1 transition-colors"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>{copiedSubject ? 'Copied!' : 'Copy Subject'}</span>
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Subject will appear here..."
+                    className="w-full h-11 px-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-ink"
+                  />
+                </div>
+
+                {/* Body Field */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="font-sans text-xs font-medium text-ink">Email Body</label>
+                    {emailBody && (
+                      <button
+                        type="button"
+                        onClick={handleCopyBody}
+                        className="font-sans text-xs text-muted hover:text-ink flex items-center gap-1 transition-colors"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>{copiedBody ? 'Copied!' : 'Copy Body'}</span>
+                      </button>
+                    )}
+                  </div>
+                  <textarea
+                    rows={9}
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    placeholder="Email body will appear here..."
+                    className="w-full p-3 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:outline-none focus:border-ink leading-relaxed resize-y"
+                  />
+                </div>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEmailModalOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+              {/* Modal Footer */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-hairline shrink-0">
+                <div>
+                  {(emailSubject || emailBody) && (
+                    <a
+                      href={getMailtoLink()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 font-sans text-xs font-semibold text-ink hover:underline decoration-hairline underline-offset-4"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open in email app</span>
+                    </a>
+                  )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEmailModalOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Toast Feedback Notification (Flat, no blur) */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div
-            className={`px-4 py-3 rounded-card border shadow-none flex items-center gap-3 font-sans text-xs font-semibold ${
-              toast.type === 'error'
-                ? 'bg-status-failed-bg text-status-failed-text border-status-failed-text/30'
-                : 'bg-white text-ink border-hairline'
-            }`}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="fixed bottom-6 right-6 z-50"
           >
-            <span>{toast.message}</span>
-            <button
-              type="button"
-              onClick={() => setToast(null)}
-              className="ml-2 text-muted hover:text-ink"
-              aria-label="Dismiss notification"
+            <div
+              className={`px-4 py-3 rounded-card border shadow-none flex items-center gap-3 font-sans text-xs font-semibold ${
+                toast.type === 'error'
+                  ? 'bg-status-failed-bg text-status-failed-text border-status-failed-text/30'
+                  : 'bg-white text-ink border-hairline'
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
+              <span>{toast.message}</span>
+              <button
+                type="button"
+                onClick={() => setToast(null)}
+                className="ml-2 text-muted hover:text-ink"
+                aria-label="Dismiss notification"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AppShell>
   );
 }

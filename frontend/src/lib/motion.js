@@ -143,10 +143,10 @@ export function AnimatedNumber({ value = 0, duration = DURATION.COUNT_UP, classN
     return () => controls.stop();
   }, [value, duration, shouldReduceMotion]);
 
-  return (
-    <span className={`tabular-nums ${className}`}>
-      {displayValue}
-    </span>
+  return React.createElement(
+    'span',
+    { className: `tabular-nums ${className}` },
+    displayValue
   );
 }
 
@@ -158,32 +158,34 @@ export function AnimatedCheckmark({ checked = false, className = 'w-3.5 h-3.5 te
   const shouldReduceMotion = useReducedMotion();
 
   if (shouldReduceMotion) {
-    return checked ? (
-      <svg viewBox="0 0 14 14" className={className} fill="none">
-        <path
-          d="M2.5 7.5L5.5 10.5L11.5 3.5"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ) : null;
+    return checked
+      ? React.createElement(
+          'svg',
+          { viewBox: '0 0 14 14', className, fill: 'none' },
+          React.createElement('path', {
+            d: 'M2.5 7.5L5.5 10.5L11.5 3.5',
+            stroke: 'currentColor',
+            strokeWidth: '2',
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+          })
+        )
+      : null;
   }
 
-  return (
-    <svg viewBox="0 0 14 14" className={className} fill="none">
-      <motion.path
-        d="M2.5 7.5L5.5 10.5L11.5 3.5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        initial={{ pathLength: 0 }}
-        animate={{ pathLength: checked ? 1 : 0 }}
-        transition={{ duration: DURATION.FAST, ease: 'easeOut' }}
-      />
-    </svg>
+  return React.createElement(
+    'svg',
+    { viewBox: '0 0 14 14', className, fill: 'none' },
+    React.createElement(motion.path, {
+      d: 'M2.5 7.5L5.5 10.5L11.5 3.5',
+      stroke: 'currentColor',
+      strokeWidth: '2',
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      initial: { pathLength: 0 },
+      animate: { pathLength: checked ? 1 : 0 },
+      transition: { duration: DURATION.FAST, ease: 'easeOut' },
+    })
   );
 }
 
@@ -194,30 +196,26 @@ export function AnimatedCheckmark({ checked = false, className = 'w-3.5 h-3.5 te
 export function FlatTypingIndicator({ className = '' }) {
   const shouldReduceMotion = useReducedMotion();
 
-  return (
-    <div className={`flex items-center gap-1.5 px-4 py-3 bg-chat-bubble-ai rounded-2xl rounded-tl-sm border border-hairline/60 shadow-none ${className}`}>
-      {[0, 0.2, 0.4].map((delay, idx) => (
-        <motion.span
-          key={idx}
-          className="w-1.5 h-1.5 rounded-full bg-ink/70"
-          animate={
-            shouldReduceMotion
-              ? { opacity: 0.7 }
-              : { opacity: [0.3, 1, 0.3] }
-          }
-          transition={
-            shouldReduceMotion
-              ? {}
-              : {
-                  repeat: Infinity,
-                  duration: 1.0,
-                  delay,
-                  ease: 'easeInOut',
-                }
-          }
-        />
-      ))}
-    </div>
+  return React.createElement(
+    'div',
+    {
+      className: `flex items-center gap-1.5 px-4 py-3 bg-chat-bubble-ai rounded-2xl rounded-tl-sm border border-hairline/60 shadow-none ${className}`,
+    },
+    [0, 0.2, 0.4].map((delay, idx) =>
+      React.createElement(motion.span, {
+        key: idx,
+        className: 'w-1.5 h-1.5 rounded-full bg-ink/70',
+        animate: shouldReduceMotion ? { opacity: 0.7 } : { opacity: [0.3, 1, 0.3] },
+        transition: shouldReduceMotion
+          ? {}
+          : {
+              repeat: Infinity,
+              duration: 1.0,
+              delay,
+              ease: 'easeInOut',
+            },
+      })
+    )
   );
 }
 
@@ -228,23 +226,15 @@ export function FlatTypingIndicator({ className = '' }) {
 export function FlatPulsingDot({ className = 'w-1.5 h-1.5 rounded-full bg-current' }) {
   const shouldReduceMotion = useReducedMotion();
 
-  return (
-    <motion.span
-      className={className}
-      animate={
-        shouldReduceMotion
-          ? { opacity: 1 }
-          : { opacity: [1, 0.25, 1] }
-      }
-      transition={
-        shouldReduceMotion
-          ? {}
-          : {
-              repeat: Infinity,
-              duration: 1.2,
-              ease: 'easeInOut',
-            }
-      }
-    />
-  );
+  return React.createElement(motion.span, {
+    className,
+    animate: shouldReduceMotion ? { opacity: 1 } : { opacity: [1, 0.25, 1] },
+    transition: shouldReduceMotion
+      ? {}
+      : {
+          repeat: Infinity,
+          duration: 1.2,
+          ease: 'easeInOut',
+        },
+  });
 }

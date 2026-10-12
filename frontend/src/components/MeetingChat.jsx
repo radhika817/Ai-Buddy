@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, RotateCcw } from 'lucide-react';
+import { motion } from 'framer-motion';
 import api from '../services/api';
+import { FlatTypingIndicator } from '../lib/motion';
 
 const SUGGESTED_QUESTIONS = [
   'Summarize this meeting',
@@ -17,15 +19,18 @@ function renderAnswerWithTimestamps(text, onTimestampClick) {
     if (match) {
       const timeStr = match[1];
       return (
-        <button
+        <motion.button
           key={idx}
           type="button"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1, duration: 0.15, ease: 'easeOut' }}
           onClick={() => onTimestampClick && onTimestampClick(timeStr)}
           title={`Jump to ${timeStr} in transcript`}
           className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-pill font-mono text-[11px] font-semibold bg-frame border border-hairline text-muted hover:text-ink hover:border-ink transition-colors cursor-pointer align-baseline select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
         >
           <span>[{timeStr}]</span>
-        </button>
+        </motion.button>
       );
     }
     return <span key={idx}>{part}</span>;
