@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Edit2,
   Check,
@@ -14,6 +15,7 @@ import {
 import api from '../services/api';
 import { AppShell, TopBar, Button, Badge, Chip, Footer } from '../components/ui';
 import MeetingChat from '../components/MeetingChat';
+import { FlatPulsingDot, AnimatedCheckmark, modalOverlay, modalPanel } from '../lib/motion';
 
 const SPEAKER_TINTS = [
   'bg-lavender',
@@ -326,11 +328,23 @@ export default function MeetingDetail() {
 
           setTimeout(() => {
             setHighlightedSegmentId(null);
-          }, 3500);
+          }, 1500);
         }
       }
     }
   }, [searchParams, segments]);
+
+  // Modal Escape key listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isEmailModalOpen) setIsEmailModalOpen(false);
+        if (isRenameSpeakerOpen) setIsRenameSpeakerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEmailModalOpen, isRenameSpeakerOpen]);
 
   const handleTabChange = (tabName) => {
     userTabSelectionRef.current = true;
@@ -375,7 +389,7 @@ export default function MeetingDetail() {
 
         setTimeout(() => {
           setHighlightedSegmentId(null);
-        }, 3500);
+        }, 1500);
       }
     }
   };
@@ -842,9 +856,12 @@ export default function MeetingDetail() {
                   return (
                     <div
                       key={step}
-                      className={`p-3 rounded-xl border text-center font-sans text-xs transition-colors ${stepClasses}`}
+                      className={`p-3 rounded-xl border text-center font-sans text-xs transition-colors flex items-center justify-center gap-1.5 ${stepClasses}`}
                     >
                       <p>{stepLabels[idx]}</p>
+                      {stepStatus === 'current' && (
+                        <FlatPulsingDot className="w-1.5 h-1.5 rounded-full bg-frame" />
+                      )}
                     </div>
                   );
                 })}
@@ -920,10 +937,10 @@ export default function MeetingDetail() {
                   aria-controls={`tabpanel-${tab.id}`}
                   type="button"
                   onClick={() => handleTabChange(tab.id)}
-                  className={`pb-3 border-b-2 font-sans text-base sm:text-[17px] transition-colors duration-150 flex items-center gap-2 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
+                  className={`relative pb-3 font-sans text-base sm:text-[17px] transition-colors duration-150 flex items-center gap-2 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
                     isActive
-                      ? 'border-ink font-semibold text-ink'
-                      : 'border-transparent font-medium text-muted hover:text-ink'
+                      ? 'font-semibold text-ink'
+                      : 'font-medium text-muted hover:text-ink'
                   }`}
                 >
                   <span>{tab.label}</span>
@@ -932,98 +949,119 @@ export default function MeetingDetail() {
                       ({tab.count})
                     </span>
                   )}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabUnderline"
+                      className="absolute bottom-0 left-0 right-0 h-[2px] bg-ink"
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
                 </button>
               );
             })}
           </div>
 
-          {/* Tab Content Panels */}
-          <div className="flex flex-col gap-8">
-            {/* 1. SUMMARY TAB */}
-            {activeTab === 'summary' && (
-              <div
-                id="tabpanel-summary"
-                role="tabpanel"
-                aria-labelledby="tab-summary"
+          {/* Tab Content Panels (cross-fades with a 4px rise) */}
+          <div className="flex flex-col gap-8 min-h-[300px]">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
                 className="flex flex-col gap-8"
               >
-                {/* Lavender Summary Accent Block */}
-                <section className="bg-lavender rounded-[20px] border border-hairline p-6 sm:p-8 flex flex-col gap-3 shadow-none">
-                  <h2 className="font-display font-bold text-xl sm:text-2xl text-ink">
-                    Summary
-                  </h2>
-                  <p className="font-sans text-base sm:text-[17px] leading-relaxed text-ink">
-                    {meeting.summary || 'No summary available for this meeting.'}
-                  </p>
-                </section>
+                {/* 1. SUMMARY TAB */}
+                {activeTab === 'summary' && (
+                  <div
+                    id="tabpanel-summary"
+                    role="tabpanel"
+                    aria-labelledby="tab-summary"
+                    className="flex flex-col gap-8"
+                  >
+                    {/* Lavender Summary Accent Block */}
+                    <section className="bg-lavender rounded-[20px] border border-hairline p-6 sm:p-8 flex flex-col gap-3 shadow-none">
+                      <h2 className="font-display font-bold text-xl sm:text-2xl text-ink">
+                        Summary
+                      </h2>
+                      <p className="font-sans text-base sm:text-[17px] leading-relaxed text-ink">
+                        {meeting.summary || 'No summary available for this meeting.'}
+                      </p>
+                    </section>
 
-                {/* Key Points Section */}
-                {meeting.key_points && meeting.key_points.length > 0 && (
-                  <section className="flex flex-col gap-4">
-                    <h3 className="font-display font-bold text-lg sm:text-xl text-ink">
-                      Key points
-                    </h3>
-                    <ul className="flex flex-col gap-3 pl-1">
-                      {meeting.key_points.map((point, index) => (
-                        <li key={index} className="flex items-start gap-3">
-                          <span className="text-ink text-lg leading-6 select-none font-bold">•</span>
-                          <span className="font-sans text-base text-ink leading-relaxed">
-                            {point}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-
-                {/* Action Items Overview */}
-                <section className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-display font-bold text-lg sm:text-xl text-ink">
-                      Action items
-                    </h3>
-                    {actionItems.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => handleTabChange('action-items')}
-                        className="font-sans text-xs text-muted hover:text-ink transition-colors"
-                      >
-                        View all ({actionItems.length}) →
-                      </button>
+                    {/* Key Points Section */}
+                    {meeting.key_points && meeting.key_points.length > 0 && (
+                      <section className="flex flex-col gap-4">
+                        <h3 className="font-display font-bold text-lg sm:text-xl text-ink">
+                          Key points
+                        </h3>
+                        <ul className="flex flex-col gap-3 pl-1">
+                          {meeting.key_points.map((point, index) => (
+                            <li key={index} className="flex items-start gap-3">
+                              <span className="text-ink text-lg leading-6 select-none font-bold">•</span>
+                              <span className="font-sans text-base text-ink leading-relaxed">
+                                {point}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
                     )}
-                  </div>
 
-                  {actionItems.length === 0 ? (
-                    <div className="bg-white rounded-[16px] border border-hairline p-6 text-center text-sm text-muted">
-                      No action items detected in this meeting.
-                    </div>
-                  ) : (
-                    <div className="bg-white rounded-[16px] border border-hairline overflow-hidden divide-y divide-hairline shadow-none">
-                      {actionItems.slice(0, 4).map((item) => {
-                        const isDone = item.status === 'done';
-                        const tint = item.assigned_to ? getSpeakerTint(item.assigned_to) : 'bg-frame';
-                        return (
-                          <div
-                            key={item.id}
-                            className="p-4 px-5 flex items-center justify-between gap-4"
+                    {/* Action Items Overview */}
+                    <section className="flex flex-col gap-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-display font-bold text-lg sm:text-xl text-ink">
+                          Action items
+                        </h3>
+                        {actionItems.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleTabChange('action-items')}
+                            className="font-sans text-xs text-muted hover:text-ink transition-colors"
                           >
-                            <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                              <input
-                                id={`summary-item-${item.id}`}
-                                type="checkbox"
-                                checked={isDone}
-                                onChange={() => handleToggleActionItem(item.id, item.status)}
-                                className="w-5 h-5 rounded-[6px] border-[1.5px] border-hairline text-ink focus:ring-0 cursor-pointer"
-                              />
-                              <label
-                                htmlFor={`summary-item-${item.id}`}
-                                className={`font-sans text-sm sm:text-base text-ink cursor-pointer select-none truncate ${
-                                  isDone ? 'line-through text-muted' : ''
-                                }`}
+                            View all ({actionItems.length}) →
+                          </button>
+                        )}
+                      </div>
+
+                      {actionItems.length === 0 ? (
+                        <div className="bg-white rounded-[16px] border border-hairline p-6 text-center text-sm text-muted">
+                          No action items detected in this meeting.
+                        </div>
+                      ) : (
+                        <div className="bg-white rounded-[16px] border border-hairline overflow-hidden divide-y divide-hairline shadow-none">
+                          {actionItems.slice(0, 4).map((item) => {
+                            const isDone = item.status === 'done';
+                            const tint = item.assigned_to ? getSpeakerTint(item.assigned_to) : 'bg-frame';
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-4 px-5 flex items-center justify-between gap-4"
                               >
-                                {item.task}
-                              </label>
-                            </div>
+                                <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                                  <button
+                                    type="button"
+                                    role="checkbox"
+                                    aria-checked={isDone}
+                                    onClick={() => handleToggleActionItem(item.id, item.status)}
+                                    className={`w-5 h-5 rounded-[6px] border-[1.5px] flex items-center justify-center shrink-0 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
+                                      isDone ? 'bg-ink border-ink' : 'bg-transparent border-hairline hover:border-ink'
+                                    }`}
+                                    aria-label={`Mark task "${item.task}" as ${isDone ? 'pending' : 'done'}`}
+                                  >
+                                    <AnimatedCheckmark checked={isDone} />
+                                  </button>
+                                  <span
+                                    onClick={() => handleToggleActionItem(item.id, item.status)}
+                                    className={`font-sans text-sm sm:text-base leading-snug cursor-pointer select-none truncate transition-colors duration-150 ${
+                                      isDone ? 'line-through text-muted' : 'text-ink font-medium'
+                                    }`}
+                                  >
+                                    {item.task}
+                                  </span>
+                                </div>
                             <div className="flex items-center gap-3 shrink-0">
                               <span
                                 className={`inline-flex items-center px-3 py-0.5 rounded-pill ${tint} border border-hairline font-sans text-xs sm:text-[13px] font-medium text-ink`}
@@ -1140,14 +1178,26 @@ export default function MeetingDetail() {
                       const isEditingSpeaker = editingSpeakerSegId === seg.id;
 
                       return (
-                        <div
+                        <motion.div
                           key={seg.id}
                           id={`segment-${seg.id}`}
-                          className={`p-4 sm:p-5 rounded-[16px] border transition-colors flex flex-col gap-2.5 ${
+                          animate={
                             isHighlighted
-                              ? 'bg-lavender/40 border-ink ring-2 ring-ink/30'
-                              : 'bg-white border-hairline'
-                          }`}
+                              ? {
+                                  backgroundColor: ['#FFFFFF', '#DDD9F0', '#FFFFFF'],
+                                  borderColor: ['#DEDAD6', '#1D1618', '#DEDAD6'],
+                                }
+                              : {
+                                  backgroundColor: '#FFFFFF',
+                                  borderColor: '#DEDAD6',
+                                }
+                          }
+                          transition={
+                            isHighlighted
+                              ? { duration: 1.5, ease: 'easeOut', times: [0, 0.2, 1] }
+                              : { duration: 0.2 }
+                          }
+                          className="p-4 sm:p-5 rounded-[16px] border flex flex-col gap-2.5"
                         >
                           {/* Segment Header */}
                           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1268,7 +1318,7 @@ export default function MeetingDetail() {
                               )}
                             </div>
                           )}
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
