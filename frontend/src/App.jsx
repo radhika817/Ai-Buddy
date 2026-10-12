@@ -99,7 +99,7 @@ function AppLayout() {
     <div
       className={`min-h-screen flex flex-col ${
         isLanding
-          ? 'bg-[#FBF9F5] text-stone-900'
+          ? 'bg-canvas text-ink'
           : 'bg-background text-slate-100 selection:bg-accent-500/20 selection:text-accent-300'
       }`}
     >
