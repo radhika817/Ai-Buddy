@@ -18,6 +18,7 @@ export default function Login() {
   // If already logged in, redirect to Dashboard
   useEffect(() => {
     if (localStorage.getItem('token')) {
+
       navigate('/dashboard', { replace: true });
     }
   }, [navigate]);
@@ -54,8 +55,8 @@ export default function Login() {
         typeof detail === 'string'
           ? detail
           : Array.isArray(detail)
-          ? detail[0]?.msg || 'Validation error'
-          : 'Failed to sign in. Please check your credentials.';
+            ? detail[0]?.msg || 'Validation error'
+            : 'Failed to sign in. Please check your credentials.';
       setError(errorMsg);
     } finally {
       setLoading(false);
