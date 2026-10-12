@@ -116,9 +116,14 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right Column: Browser-Window Product Preview Card (Strictly NO SHADOW) */}
+            {/* Right Column: Browser-Window Product Preview Card (Strictly NO SHADOW, fades in after hero panel) */}
             <div className="lg:col-span-7 relative p-4 sm:p-8 lg:p-10 flex items-center justify-center">
-              <div className="w-full max-w-xl bg-surface border border-hairline rounded-card overflow-hidden shadow-none">
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: 'easeOut', delay: 0.45 }}
+                className="w-full max-w-xl bg-surface border border-hairline rounded-card overflow-hidden shadow-none"
+              >
                 {/* Preview Window Chrome Header */}
                 <div className="px-4 sm:px-5 py-3.5 border-b border-hairline flex items-center justify-between bg-frame/50">
                   <div className="flex items-center gap-2">
@@ -245,14 +250,21 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {/* ── HOW IT WORKS SECTION ────────────────────────────────────────── */}
-      <section id="how-it-works" className="py-16 px-6 lg:px-10 border-t border-hairline">
+      {/* ── HOW IT WORKS SECTION (Fades up on scroll with once: true) ──────── */}
+      <motion.section
+        id="how-it-works"
+        initial={{ opacity: 0, y: 12 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-40px' }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="py-16 px-6 lg:px-10 border-t border-hairline"
+      >
         <div className="mb-10">
           <p className="font-sans text-xs uppercase tracking-wider text-muted font-semibold mb-2">
             Workflow
@@ -299,10 +311,17 @@ export default function LandingPage() {
             </p>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* ── FEATURES BENTO GRID ─────────────────────────────────────────── */}
-      <section id="features" className="py-16 px-6 lg:px-10 border-t border-hairline">
+      {/* ── FEATURES BENTO GRID (Fades up on scroll with once: true) ───────── */}
+      <motion.section
+        id="features"
+        initial={{ opacity: 0, y: 12 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-40px' }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="py-16 px-6 lg:px-10 border-t border-hairline"
+      >
         <div className="mb-10">
           <p className="font-sans text-xs uppercase tracking-wider text-muted font-semibold mb-2">
             Capabilities
@@ -340,7 +359,7 @@ export default function LandingPage() {
             </p>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────── */}
       <Footer />

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { AppShell, TopBar, Button, Badge, Footer } from '../components/ui';
+import { AnimatedNumber } from '../lib/motion';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -210,8 +212,8 @@ export default function Dashboard() {
           <div className="grid grid-cols-3">
             {/* Stat 1: Meetings */}
             <div className="flex flex-col border-r border-ink/15 pr-4 sm:pr-8">
-              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink">
-                {totalMeetings}
+              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink tabular-nums">
+                <AnimatedNumber value={totalMeetings} duration={0.6} />
               </span>
               <span className="font-sans text-xs sm:text-sm text-muted mt-2 font-medium">
                 Meetings
@@ -220,8 +222,8 @@ export default function Dashboard() {
 
             {/* Stat 2: Open Tasks */}
             <div className="flex flex-col px-4 sm:px-8 border-r border-ink/15">
-              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink">
-                {openTasks}
+              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink tabular-nums">
+                <AnimatedNumber value={openTasks} duration={0.6} />
               </span>
               <span className="font-sans text-xs sm:text-sm text-muted mt-2 font-medium">
                 Open tasks
@@ -230,8 +232,8 @@ export default function Dashboard() {
 
             {/* Stat 3: Done */}
             <div className="flex flex-col pl-4 sm:pl-8">
-              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink">
-                {doneTasks}
+              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink tabular-nums">
+                <AnimatedNumber value={doneTasks} duration={0.6} />
               </span>
               <span className="font-sans text-xs sm:text-sm text-muted mt-2 font-medium">
                 Done
@@ -286,7 +288,7 @@ export default function Dashboard() {
 
         {/* 4. MEETINGS TABLE / STATES */}
 
-        {/* Skeleton Loader (Flat, no shimmer gradients) */}
+        {/* Flat Skeleton Loader (Flat solid tint, opacity only pulse, no gradients/shimmers) */}
         {loading && (
           <div className="bg-surface rounded-table border border-hairline overflow-hidden p-6 space-y-4 shadow-none">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -294,10 +296,10 @@ export default function Dashboard() {
                 key={i}
                 className="flex items-center justify-between py-3 border-b border-hairline/40 last:border-0"
               >
-                <div className="h-4 w-44 bg-hairline/60 rounded animate-pulse" />
-                <div className="h-4 w-24 bg-hairline/60 rounded animate-pulse" />
-                <div className="h-4 w-16 bg-hairline/60 rounded animate-pulse" />
-                <div className="h-6 w-20 bg-hairline/60 rounded-pill animate-pulse" />
+                <div className="h-4 w-44 bg-hairline/60 rounded animate-flat-pulse" />
+                <div className="h-4 w-24 bg-hairline/60 rounded animate-flat-pulse" />
+                <div className="h-4 w-16 bg-hairline/60 rounded animate-flat-pulse" />
+                <div className="h-6 w-20 bg-hairline/60 rounded-pill animate-flat-pulse" />
               </div>
             ))}
           </div>
@@ -393,32 +395,127 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline">
-                  {filteredMeetings.map((meeting) => (
-                    <tr
+                  <AnimatePresence initial={false}>
+                    {filteredMeetings.map((meeting, index) => {
+                      const isAnimated = index < 10;
+                      return (
+                        <motion.tr
+                          key={meeting.id}
+                          layout
+                          initial={isAnimated ? { opacity: 0, y: 4 } : false}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{
+                            opacity: 0,
+                            height: 0,
+                            transition: { duration: 0.2, ease: 'easeOut' },
+                          }}
+                          transition={{
+                            duration: 0.2,
+                            delay: isAnimated ? index * 0.03 : 0,
+                            ease: 'easeOut',
+                          }}
+                          onClick={() => navigate(`/meetings/${meeting.id}`)}
+                          className="bg-surface hover:bg-frame/60 transition-colors cursor-pointer group"
+                        >
+                          {/* Title */}
+                          <td className="px-6 py-5 font-sans text-sm font-medium text-ink whitespace-nowrap">
+                            <span className="group-hover:underline">
+                              {meeting.title}
+                            </span>
+                          </td>
+
+                          {/* Date (JetBrains Mono) */}
+                          <td className="px-6 py-5 font-mono text-xs text-muted whitespace-nowrap">
+                            {formatDate(meeting.created_at)}
+                          </td>
+
+                          {/* Duration (JetBrains Mono) */}
+                          <td className="px-6 py-5 font-mono text-xs text-muted whitespace-nowrap">
+                            {formatDuration(meeting.duration_seconds)}
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-6 py-5 whitespace-nowrap">
+                            <div className="inline-flex items-center">
+                              {renderStatusBadge(meeting.status)}
+                              {meeting.status?.toLowerCase() === 'failed' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) =>
+                                    handleDelete(e, meeting.id, meeting.title)
+                                  }
+                                  disabled={deletingId === meeting.id}
+                                  className="font-sans text-xs text-status-failed-text underline ml-2 hover:opacity-80 cursor-pointer font-medium"
+                                  title="Delete failed meeting"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Trailing Quiet Delete Action + Arrow (shifts 2px on hover) */}
+                          <td className="px-6 py-5 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={(e) =>
+                                  handleDelete(e, meeting.id, meeting.title)
+                                }
+                                disabled={deletingId === meeting.id}
+                                className="text-muted hover:text-status-failed-text p-1 text-xs font-sans transition-colors cursor-pointer font-medium"
+                                title="Delete meeting"
+                                aria-label={`Delete meeting ${meeting.title}`}
+                              >
+                                {deletingId === meeting.id ? (
+                                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
+                                ) : (
+                                  <span className="hover:underline">Delete</span>
+                                )}
+                              </button>
+                              <span className="text-muted group-hover:text-ink group-hover:translate-x-[2px] inline-block transition-transform duration-150">
+                                →
+                              </span>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
+                  </AnimatePresence>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Stacked Rows View (sm:hidden, no horizontal scroll) */}
+            <div className="sm:hidden divide-y divide-hairline">
+              <AnimatePresence initial={false}>
+                {filteredMeetings.map((meeting, index) => {
+                  const isAnimated = index < 10;
+                  return (
+                    <motion.div
                       key={meeting.id}
+                      layout
+                      initial={isAnimated ? { opacity: 0, y: 4 } : false}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{
+                        opacity: 0,
+                        height: 0,
+                        transition: { duration: 0.2, ease: 'easeOut' },
+                      }}
+                      transition={{
+                        duration: 0.2,
+                        delay: isAnimated ? index * 0.03 : 0,
+                        ease: 'easeOut',
+                      }}
                       onClick={() => navigate(`/meetings/${meeting.id}`)}
-                      className="bg-surface hover:bg-frame/60 transition-colors cursor-pointer group"
+                      className="p-4 hover:bg-frame/60 transition-colors cursor-pointer flex flex-col gap-2.5"
                     >
-                      {/* Title */}
-                      <td className="px-6 py-5 font-sans text-sm font-medium text-ink whitespace-nowrap">
-                        <span className="group-hover:underline">
+                      {/* Top Stack: Title + Status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-sans text-sm font-medium text-ink truncate">
                           {meeting.title}
                         </span>
-                      </td>
-
-                      {/* Date (JetBrains Mono) */}
-                      <td className="px-6 py-5 font-mono text-xs text-muted whitespace-nowrap">
-                        {formatDate(meeting.created_at)}
-                      </td>
-
-                      {/* Duration (JetBrains Mono) */}
-                      <td className="px-6 py-5 font-mono text-xs text-muted whitespace-nowrap">
-                        {formatDuration(meeting.duration_seconds)}
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-6 py-5 whitespace-nowrap">
-                        <div className="inline-flex items-center">
+                        <div className="flex items-center gap-2 shrink-0">
                           {renderStatusBadge(meeting.status)}
                           {meeting.status?.toLowerCase() === 'failed' && (
                             <button
@@ -427,98 +524,41 @@ export default function Dashboard() {
                                 handleDelete(e, meeting.id, meeting.title)
                               }
                               disabled={deletingId === meeting.id}
-                              className="font-sans text-xs text-status-failed-text underline ml-2 hover:opacity-80 cursor-pointer font-medium"
-                              title="Delete failed meeting"
+                              className="font-sans text-xs text-status-failed-text underline font-medium"
                             >
                               Delete
                             </button>
                           )}
                         </div>
-                      </td>
+                      </div>
 
-                      {/* Trailing Quiet Delete Action + Arrow */}
-                      <td className="px-6 py-5 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-3">
+                      {/* Bottom Stack: Date + Duration + Delete + Arrow */}
+                      <div className="flex items-center justify-between text-xs text-muted font-mono pt-1">
+                        <div className="flex items-center gap-2">
+                          <span>{formatDate(meeting.created_at)}</span>
+                          <span>•</span>
+                          <span>{formatDuration(meeting.duration_seconds)}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
                           <button
                             type="button"
                             onClick={(e) =>
                               handleDelete(e, meeting.id, meeting.title)
                             }
                             disabled={deletingId === meeting.id}
-                            className="text-muted hover:text-status-failed-text p-1 text-xs font-sans transition-colors cursor-pointer font-medium"
-                            title="Delete meeting"
-                            aria-label={`Delete meeting ${meeting.title}`}
+                            className="font-sans text-xs text-muted hover:text-status-failed-text underline font-medium"
                           >
-                            {deletingId === meeting.id ? (
-                              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
-                            ) : (
-                              <span className="hover:underline">Delete</span>
-                            )}
+                            Delete
                           </button>
-                          <span className="text-muted group-hover:text-ink group-hover:translate-x-0.5 inline-block transition-transform duration-150">
+                          <span className="group-hover:translate-x-[2px] transition-transform duration-150 inline-block">
                             →
                           </span>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Stacked Rows View (sm:hidden, no horizontal scroll) */}
-            <div className="sm:hidden divide-y divide-hairline">
-              {filteredMeetings.map((meeting) => (
-                <div
-                  key={meeting.id}
-                  onClick={() => navigate(`/meetings/${meeting.id}`)}
-                  className="p-4 hover:bg-frame/60 transition-colors cursor-pointer flex flex-col gap-2.5"
-                >
-                  {/* Top Stack: Title + Status */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-sans text-sm font-medium text-ink truncate">
-                      {meeting.title}
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {renderStatusBadge(meeting.status)}
-                      {meeting.status?.toLowerCase() === 'failed' && (
-                        <button
-                          type="button"
-                          onClick={(e) =>
-                            handleDelete(e, meeting.id, meeting.title)
-                          }
-                          disabled={deletingId === meeting.id}
-                          className="font-sans text-xs text-status-failed-text underline font-medium"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Bottom Stack: Date + Duration + Delete + Arrow */}
-                  <div className="flex items-center justify-between text-xs text-muted font-mono pt-1">
-                    <div className="flex items-center gap-2">
-                      <span>{formatDate(meeting.created_at)}</span>
-                      <span>•</span>
-                      <span>{formatDuration(meeting.duration_seconds)}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={(e) =>
-                          handleDelete(e, meeting.id, meeting.title)
-                        }
-                        disabled={deletingId === meeting.id}
-                        className="font-sans text-xs text-muted hover:text-status-failed-text underline font-medium"
-                      >
-                        Delete
-                      </button>
-                      <span>→</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
           </div>
         )}
