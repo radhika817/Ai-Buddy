@@ -1,57 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Bot,
-  Send,
-  Loader2,
-  Sparkles,
-  AlertCircle,
-  Clock,
-  RotateCcw,
-  User,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  MessageSquare,
-  HelpCircle,
-  CheckCircle2,
-  ListTodo,
-  FileText,
-  Users,
-  RotateCw,
-} from 'lucide-react';
+import { ArrowUp, RotateCcw, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import api from '../services/api';
+import { AppShell, TopBar, Button, Footer } from '../components/ui';
 
 const SUGGESTED_QUESTIONS = [
-  {
-    title: 'Recent Decisions',
-    question: 'What decisions were made recently?',
-    icon: CheckCircle2,
-    gradient: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30 text-emerald-300',
-  },
-  {
-    title: 'Open Action Items',
-    question: 'What are my open action items?',
-    icon: ListTodo,
-    gradient: 'from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-300',
-  },
-  {
-    title: 'Latest Meeting',
-    question: 'Summarize my latest meeting',
-    icon: FileText,
-    gradient: 'from-sky-500/20 to-blue-500/10 border-sky-500/30 text-sky-300',
-  },
-  {
-    title: 'Responsibilities',
-    question: 'Who is responsible for what?',
-    icon: Users,
-    gradient: 'from-purple-500/20 to-indigo-500/10 border-purple-500/30 text-purple-300',
-  },
+  'What decisions were made recently?',
+  'What are my open action items?',
+  'Summarize my latest meeting',
+  'Who is responsible for what?',
 ];
 
 function formatSecondsToMMSS(seconds) {
-  if (seconds === undefined || seconds === null) return '00:00';
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00';
   const total = Math.max(0, Math.floor(seconds));
   const mins = Math.floor(total / 60);
   const secs = total % 60;
@@ -69,13 +30,10 @@ function parseTimeSeconds(timeStr) {
   return 0;
 }
 
-/**
- * Parses and renders answer text with in-text citation chips like [Sprint Review, 03:25]
- */
 function renderAnswerWithCitations(content, sources = [], onCitationClick) {
   if (!content) return null;
 
-  // Matches bracketed citations like [Meeting Title, 03:25] or [Meeting 1, 00:00; Meeting 2, 01:10]
+  // Matches bracketed citations like [Meeting Title, 03:25]
   const bracketRegex = /(\[[^\]]*?\d{1,2}:\d{2}(?::\d{2})?[^\]]*?\])/g;
   const parts = content.split(bracketRegex);
 
@@ -97,7 +55,7 @@ function renderAnswerWithCitations(content, sources = [], onCitationClick) {
           const match = sub.match(/^(?:Meeting:\s*)?(.*?),\s*(\d{1,2}:\d{2}(?::\d{2})?)$/i);
           if (!match) {
             return (
-              <span key={subIdx} className="text-accent-400 font-medium">
+              <span key={subIdx} className="font-mono text-xs text-muted">
                 [{sub}]
               </span>
             );
@@ -130,12 +88,10 @@ function renderAnswerWithCitations(content, sources = [], onCitationClick) {
                   ? `Open "${rawTitle}" transcript at ${timeStr}`
                   : `Referenced at ${timeStr}`
               }
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-accent-500/15 hover:bg-accent-500/25 text-accent-300 hover:text-accent-200 border border-accent-500/30 transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill font-mono text-[11px] font-semibold bg-frame border border-hairline text-muted hover:text-ink hover:border-ink transition-colors cursor-pointer select-none"
             >
-              <Clock className="w-3 h-3 text-accent-400 shrink-0" />
-              <span className="font-semibold truncate max-w-[150px]">{rawTitle}</span>
-              <span className="font-mono text-[11px] text-accent-400">({timeStr})</span>
-              <ExternalLink className="w-2.5 h-2.5 opacity-60 ml-0.5" />
+              <span className="truncate max-w-[140px] font-sans font-medium">{rawTitle}</span>
+              <span>{timeStr}</span>
             </button>
           );
         })}
@@ -163,9 +119,8 @@ export default function CrossMeetingChat() {
   const [expandedSources, setExpandedSources] = useState({});
 
   const messagesEndRef = useRef(null);
-  const textareaRef = useRef(null);
+  const inputRef = useRef(null);
 
-  // Sync to sessionStorage
   useEffect(() => {
     try {
       sessionStorage.setItem('ai_buddy_cross_chat_messages', JSON.stringify(messages));
@@ -181,6 +136,13 @@ export default function CrossMeetingChat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading, errorState]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.dispatchEvent(new Event('auth-change'));
+    navigate('/login');
+  };
 
   const toggleSources = (messageId) => {
     setExpandedSources((prev) => ({
@@ -201,12 +163,10 @@ export default function CrossMeetingChat() {
     setErrorState(null);
     setInput('');
 
-    // Append user message
     const userMessage = {
       id: `${Date.now()}-user`,
       role: 'user',
       content: questionToSend,
-      timestamp: new Date().toISOString(),
     };
 
     const updatedMessages = [...messages, userMessage];
@@ -230,7 +190,6 @@ export default function CrossMeetingChat() {
         role: 'assistant',
         content: res.data.answer || "I couldn't find that in your meetings.",
         sources: res.data.sources || [],
-        timestamp: new Date().toISOString(),
       };
 
       setMessages([...updatedMessages, assistantMessage]);
@@ -239,7 +198,7 @@ export default function CrossMeetingChat() {
       const detail =
         err.response?.data?.detail ||
         (status === 429
-          ? 'Too many requests or high API demand. Please wait a moment before trying again.'
+          ? 'Too many requests. Please wait a moment before trying again.'
           : 'Failed to get an answer from AI Buddy. Please verify your connection and try again.');
 
       setErrorState({
@@ -248,8 +207,8 @@ export default function CrossMeetingChat() {
       });
     } finally {
       setLoading(false);
-      if (textareaRef.current) {
-        textareaRef.current.focus();
+      if (inputRef.current) {
+        inputRef.current.focus();
       }
     }
   };
@@ -268,283 +227,214 @@ export default function CrossMeetingChat() {
     sessionStorage.removeItem('ai_buddy_cross_chat_messages');
   };
 
+  const navLinks = [
+    { label: 'Meetings', href: '/dashboard' },
+    { label: 'Tasks', href: '/tasks' },
+    { label: 'Ask AI', href: '/chat', active: true },
+  ];
+
+  const logoutButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleLogout}
+      className="text-xs sm:text-sm font-semibold"
+    >
+      Log out
+    </Button>
+  );
+
   return (
-    <div className="flex-1 flex flex-col max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between pb-5 border-b border-slate-800/80 mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-accent-600 to-teal-400 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-accent-500/20">
-            <Bot className="w-5 h-5 text-slate-950 stroke-[2.2]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                Ask AI Buddy
+    <AppShell>
+      <TopBar navLinks={navLinks} action={logoutButton} />
+
+      <div className="w-full px-6 lg:px-10 py-8 flex-1 flex flex-col items-center">
+        <div className="w-full max-w-[800px] flex-1 flex flex-col gap-6">
+          {/* Header Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-hairline gap-3">
+            <div>
+              <h1 className="text-3xl sm:text-4xl tracking-tight text-ink">
+                <span className="font-display font-extrabold uppercase">ASK ACROSS </span>
+                <span className="font-display font-light italic">MEETINGS</span>
               </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-500/10 text-accent-400 border border-accent-500/20">
-                <Sparkles className="w-2.5 h-2.5" />
-                Cross-Meeting AI
-              </span>
+              <p className="font-sans text-xs sm:text-sm text-muted mt-1">
+                Ask questions across all your recordings with source citations.
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-              Semantic memory search across all your recorded meetings & discussions
-            </p>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewChat}
+              disabled={messages.length === 0 && !errorState}
+              className="self-start sm:self-auto text-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>New chat</span>
+            </Button>
           </div>
-        </div>
 
-        {/* New Chat Button */}
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          type="button"
-          onClick={handleNewChat}
-          disabled={messages.length === 0 && !errorState}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>New Chat</span>
-        </motion.button>
-      </div>
+          {/* Messages Container */}
+          <div className="flex-1 flex flex-col gap-4 min-h-[380px] overflow-y-auto pr-1">
+            {/* Empty State */}
+            {messages.length === 0 && (
+              <div className="my-auto py-8 text-center flex flex-col items-center gap-6">
+                <div className="max-w-md flex flex-col gap-2">
+                  <h2 className="font-display font-bold text-xl text-ink">
+                    What would you like to know?
+                  </h2>
+                  <p className="font-sans text-sm text-muted leading-relaxed">
+                    AI Buddy searches across all your recorded meetings and answers questions directly with timestamp citations.
+                  </p>
+                </div>
 
-      {/* Chat Messages Container */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-[420px] max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-        {/* Empty State with Suggested Questions */}
-        {messages.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-10 px-4 text-center"
-          >
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-accent-500/20 via-teal-500/15 to-accent-600/10 border border-accent-500/30 flex items-center justify-center text-accent-400 mb-4 shadow-xl shadow-accent-500/5">
-              <Sparkles className="w-8 h-8" />
-            </div>
+                {/* Suggested Question Pills */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl">
+                  {SUGGESTED_QUESTIONS.map((q, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSendMessage(q)}
+                      className="p-3.5 rounded-pill border border-hairline hover:border-ink bg-white font-sans text-xs sm:text-sm text-ink text-left transition-colors flex items-center justify-between gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                    >
+                      <span className="truncate">{q}</span>
+                      <span className="text-muted text-xs shrink-0">→</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            <h2 className="text-xl font-bold text-white tracking-tight mb-1">
-              Ask anything about your team discussions
-            </h2>
-            <p className="text-sm text-slate-400 max-w-md mb-8">
-              AI Buddy searches by meaning across all your indexed meetings, tracks changes over time, and cites exact timestamps.
-            </p>
-
-            {/* 4 Suggested Question Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
-              {SUGGESTED_QUESTIONS.map((item, idx) => {
-                const IconComponent = item.icon;
-                return (
-                  <motion.button
-                    key={idx}
-                    whileHover={{ scale: 1.02, y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    onClick={() => handleSendMessage(item.question)}
-                    className={`p-4 rounded-2xl bg-slate-900/70 hover:bg-slate-900 border ${item.gradient} transition-all text-left flex items-start gap-3 shadow-lg shadow-black/20 group cursor-pointer`}
-                  >
-                    <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/80 shrink-0 group-hover:border-accent-500/30 transition-colors">
-                      <IconComponent className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
-                        "{item.question}"
+            {/* Message Bubbles */}
+            {messages.map((msg) => (
+              <div key={msg.id} className="flex flex-col gap-2">
+                {msg.role === 'user' ? (
+                  <div className="flex flex-col items-end">
+                    <div className="max-w-[85%] bg-ink text-frame rounded-2xl rounded-tr-sm px-4 py-3 shadow-none">
+                      <p className="font-sans text-sm sm:text-[15px] leading-snug">
+                        {msg.content}
                       </p>
                     </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-start gap-2">
+                    <div className="max-w-[90%] bg-chat-bubble-ai text-ink rounded-2xl rounded-tl-sm px-4 py-3 border border-hairline/60 shadow-none">
+                      <div className="font-sans text-sm sm:text-[15px] leading-relaxed">
+                        {renderAnswerWithCitations(msg.content, msg.sources, handleCitationClick)}
+                      </div>
+                    </div>
 
-        {/* Message Bubbles */}
-        <AnimatePresence initial={false}>
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {/* Assistant Icon */}
-              {msg.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-xl bg-accent-500/10 border border-accent-500/30 text-accent-400 flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                  <Bot className="w-4 h-4" />
-                </div>
-              )}
-
-              {/* Message Body */}
-              <div
-                className={`max-w-[85%] sm:max-w-[78%] rounded-2xl p-4 text-sm leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-accent-500/15 border border-accent-500/30 text-accent-100 rounded-tr-sm shadow-md shadow-accent-500/5'
-                    : 'bg-slate-900/80 backdrop-blur-md border border-slate-800 text-slate-100 rounded-tl-sm shadow-xl shadow-black/20'
-                }`}
-              >
-                {/* Content */}
-                <div className="whitespace-pre-wrap leading-relaxed">
-                  {msg.role === 'assistant'
-                    ? renderAnswerWithCitations(msg.content, msg.sources, handleCitationClick)
-                    : msg.content}
-                </div>
-
-                {/* Collapsible Sources (Assistant only) */}
-                {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-                  <div className="mt-3.5 pt-3 border-t border-slate-800/80">
-                    <button
-                      type="button"
-                      onClick={() => toggleSources(msg.id)}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-accent-300 transition-colors cursor-pointer group"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-accent-400" />
-                      <span>Referenced Sources ({msg.sources.length})</span>
-                      {expandedSources[msg.id] ? (
-                        <ChevronUp className="w-3.5 h-3.5 ml-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5 ml-0.5 group-hover:translate-y-0.5 transition-transform" />
-                      )}
-                    </button>
-
-                    <AnimatePresence>
-                      {expandedSources[msg.id] && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="mt-2.5 space-y-2 overflow-hidden"
+                    {/* Collapsible Sources List */}
+                    {msg.sources && msg.sources.length > 0 && (
+                      <div className="max-w-[90%] w-full">
+                        <button
+                          type="button"
+                          onClick={() => toggleSources(msg.id)}
+                          className="inline-flex items-center gap-1.5 font-sans text-xs font-semibold text-muted hover:text-ink transition-colors cursor-pointer py-1"
                         >
-                          {msg.sources.map((src, srcIdx) => (
-                            <div
-                              key={srcIdx}
-                              onClick={() => handleCitationClick(src.meeting_id, src.start_time)}
-                              title="Click to view segment in meeting transcript"
-                              className="p-3 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800/90 hover:border-accent-500/40 transition-all cursor-pointer group flex flex-col gap-1 shadow-sm"
-                            >
-                              <div className="flex items-center justify-between text-xs gap-2">
-                                <span className="font-semibold text-white group-hover:text-accent-300 transition-colors flex items-center gap-1.5 truncate">
-                                  <ExternalLink className="w-3 h-3 text-accent-400 shrink-0" />
-                                  {src.meeting_title}
-                                </span>
-                                <span className="font-mono text-[11px] text-accent-400 font-semibold px-2 py-0.5 rounded bg-accent-500/10 border border-accent-500/20 shrink-0">
-                                  {formatSecondsToMMSS(src.start_time)}
-                                </span>
+                          <span>Sources ({msg.sources.length})</span>
+                          {expandedSources[msg.id] ? (
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+
+                        {expandedSources[msg.id] && (
+                          <div className="mt-2 flex flex-col gap-2">
+                            {msg.sources.map((src, srcIdx) => (
+                              <div
+                                key={srcIdx}
+                                onClick={() => handleCitationClick(src.meeting_id, src.start_time)}
+                                title="Click to view segment in meeting transcript"
+                                className="p-3 rounded-xl bg-white border border-hairline hover:border-ink transition-colors cursor-pointer flex flex-col gap-1"
+                              >
+                                <div className="flex items-center justify-between text-xs gap-2">
+                                  <span className="font-sans font-semibold text-ink truncate">
+                                    {src.meeting_title}
+                                  </span>
+                                  <span className="font-mono text-xs text-muted shrink-0">
+                                    {formatSecondsToMMSS(src.start_time)}
+                                  </span>
+                                </div>
+                                {src.text_preview && (
+                                  <p className="font-sans text-xs text-muted line-clamp-2">
+                                    {src.text_preview.slice(0, 150)}
+                                  </p>
+                                )}
                               </div>
-                              {src.text_preview && (
-                                <p className="text-xs text-slate-400 line-clamp-2 italic mt-0.5">
-                                  "{src.text_preview}"
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+            ))}
 
-              {/* User Avatar */}
-              {msg.role === 'user' && (
-                <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                  <User className="w-4 h-4" />
+            {/* Flat Typing Indicator */}
+            {loading && (
+              <div className="flex flex-col items-start">
+                <div className="flex items-center gap-1.5 px-4 py-3 bg-chat-bubble-ai rounded-2xl rounded-tl-sm border border-hairline/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse [animation-delay:200ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse [animation-delay:400ms]" />
                 </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* Animated Typing Indicator */}
-        {loading && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-3"
-          >
-            <div className="w-8 h-8 rounded-xl bg-accent-500/10 border border-accent-500/30 text-accent-400 flex items-center justify-center shrink-0 mt-1 shadow-sm">
-              <Bot className="w-4 h-4 animate-pulse" />
-            </div>
-            <div className="p-4 rounded-2xl rounded-tl-sm bg-slate-900/80 border border-slate-800 text-slate-300 shadow-xl flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-accent-400 animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-2 h-2 rounded-full bg-accent-400 animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-2 h-2 rounded-full bg-accent-400 animate-bounce" />
               </div>
-              <span className="text-xs text-slate-400 font-medium">
-                AI Buddy is searching across your meetings...
-              </span>
-            </div>
-          </motion.div>
-        )}
+            )}
 
-        {/* Error / Rate-limit Message with Retry Button */}
-        {errorState && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg"
-          >
-            <div className="flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <span>{errorState.message}</span>
-            </div>
-            {errorState.retryQuestion && (
+            {/* Error Message with Network Retry */}
+            {errorState && (
+              <div className="p-4 rounded-xl bg-status-failed-bg border border-status-failed-text/20 text-status-failed-text text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorState.message}</span>
+                </div>
+                {errorState.retryQuestion && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSendMessage(errorState.retryQuestion)}
+                    className="self-end sm:self-auto text-xs"
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Pill Input Area */}
+          <div className="pt-2 border-t border-hairline">
+            <div className="relative flex items-center">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={loading}
+                placeholder="Ask about decisions, deadlines, or topics across meetings"
+                className="w-full h-12 pl-5 pr-12 rounded-pill border border-hairline bg-white font-sans text-sm text-ink placeholder:text-muted/60 focus:border-ink focus:outline-none transition-colors disabled:opacity-50"
+              />
               <button
                 type="button"
-                onClick={() => handleSendMessage(errorState.retryQuestion)}
-                className="self-end sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                onClick={() => handleSendMessage()}
+                disabled={!input.trim() || loading}
+                aria-label="Send query"
+                className="absolute right-1.5 w-9 h-9 rounded-full bg-ink text-frame flex items-center justify-center hover:bg-black disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink active:scale-95"
               >
-                <RotateCw className="w-3.5 h-3.5" />
-                <span>Retry</span>
+                <ArrowUp className="w-4 h-4" />
               </button>
-            )}
-          </motion.div>
-        )}
-
-        <div ref={messagesEndRef} />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Input Area */}
-      <div className="mt-4 pt-4 border-t border-slate-800/80">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="relative flex items-end gap-2 bg-slate-900/90 backdrop-blur-xl border border-slate-800 focus-within:border-accent-500/50 rounded-2xl p-2 transition-all shadow-xl shadow-black/30"
-        >
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about decisions, deadlines, tasks across your meetings (Enter to send, Shift+Enter for new line)..."
-            disabled={loading}
-            className="flex-1 bg-transparent px-3 py-2 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none max-h-32 min-h-[40px] leading-relaxed scrollbar-thin"
-          />
-
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="p-2.5 rounded-xl bg-accent-500 hover:bg-accent-400 disabled:opacity-40 disabled:hover:bg-accent-500 text-slate-950 font-semibold transition-all shadow-md shadow-accent-500/20 disabled:cursor-not-allowed cursor-pointer shrink-0 flex items-center justify-center"
-            title="Send Message"
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-            ) : (
-              <Send className="w-4 h-4 stroke-[2.2]" />
-            )}
-          </motion.button>
-        </form>
-
-        <p className="text-[11px] text-slate-500 text-center mt-2">
-          AI Buddy answers exclusively from your meeting recordings with source citations.
-        </p>
-      </div>
-    </div>
+      <Footer />
+    </AppShell>
   );
 }

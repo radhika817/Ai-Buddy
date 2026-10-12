@@ -1,58 +1,53 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  CheckSquare,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  Calendar,
-  Layers,
-  Filter,
-  User,
-  ExternalLink,
-  Check,
-  RotateCw,
-  Search,
-  ArrowUpDown,
-  Sparkles,
-  Inbox,
-  AlertCircle,
-  X,
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Check, X, RotateCw } from 'lucide-react';
 import api from '../services/api';
+import { AppShell, TopBar, Button, Badge, Chip, Footer } from '../components/ui';
 
-// Animated CountUp component for stats
-function CountUp({ target = 0, duration = 650 }) {
-  const [current, setCurrent] = useState(0);
+const SPEAKER_TINTS = [
+  'bg-lavender',
+  'bg-chip-blue',
+  'bg-chip-sage',
+  'bg-chip-sand',
+  'bg-chip-rose',
+  'bg-chip-mist',
+];
 
-  useEffect(() => {
-    let startTimestamp = null;
-    const startVal = current;
-    const diff = target - startVal;
+function getSpeakerTint(speakerName) {
+  if (!speakerName) return 'bg-frame';
+  let hash = 0;
+  for (let i = 0; i < speakerName.length; i++) {
+    hash = speakerName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % SPEAKER_TINTS.length;
+  return SPEAKER_TINTS[index];
+}
 
-    if (diff === 0) return;
-
-    const step = (timestamp) => {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      // easeOutCubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setCurrent(Math.round(startVal + diff * eased));
-
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-
-    const req = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(req);
-  }, [target, duration]);
-
-  return <span>{current}</span>;
+function formatDeadlineDate(dateStr) {
+  if (!dateStr) return null;
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return d.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    }
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
 }
 
 export default function Tasks() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState({
     total_meetings: 0,
@@ -68,16 +63,22 @@ export default function Tasks() {
 
   // Filters and sorting state
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'pending' | 'done'
-  const [assigneeFilter, setAssigneeFilter] = useState(''); // '' | specific name | 'unassigned'
+  const [assigneeFilter, setAssigneeFilter] = useState(''); // '' | name | 'unassigned'
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'deadline'
 
-  // Master list of unique assignees collected from all tasks
+  // Master list of unique assignees
   const [availableAssignees, setAvailableAssignees] = useState({
     names: [],
     hasUnassigned: false,
   });
 
-  // Check if a task is overdue (pending and deadline_date before today)
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.dispatchEvent(new Event('auth-change'));
+    navigate('/login');
+  };
+
   const isTaskOverdue = useCallback((task) => {
     if (task.status !== 'pending' || !task.deadline_date) return false;
     try {
@@ -88,31 +89,6 @@ export default function Tasks() {
     }
   }, []);
 
-  // Format deadline date for display
-  const formatDeadlineDate = useCallback((dateStr) => {
-    if (!dateStr) return null;
-    try {
-      const parts = dateStr.split('-');
-      if (parts.length === 3) {
-        const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        return d.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
-      }
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  }, []);
-
-  // Fetch stats from backend
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
@@ -125,7 +101,6 @@ export default function Tasks() {
     }
   }, []);
 
-  // Fetch all assignees from full dataset so dropdown options remain consistent
   const fetchAssignees = useCallback(async () => {
     try {
       const res = await api.get('/tasks', {
@@ -151,7 +126,6 @@ export default function Tasks() {
     }
   }, []);
 
-  // Fetch filtered tasks from backend
   const fetchTasks = useCallback(
     async (showLoading = true) => {
       try {
@@ -178,31 +152,26 @@ export default function Tasks() {
     [statusFilter, assigneeFilter, sortBy]
   );
 
-  // Initial load
   useEffect(() => {
     fetchStats();
     fetchAssignees();
   }, [fetchStats, fetchAssignees]);
 
-  // Fetch tasks on filter change
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
-  // Optimistic toggle for task status
+  // Optimistic toggle for task status with rollback
   const handleToggleTaskStatus = async (taskId, currentStatus) => {
     const newStatus = currentStatus === 'done' ? 'pending' : 'done';
 
-    // Keep snapshot for rollback
     const prevTasks = [...tasks];
     const prevStats = { ...stats };
 
-    // 1. Optimistic update in tasks state
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
 
-    // 2. Optimistic update in stats
     setStats((prev) => {
       const isNowDone = newStatus === 'done';
       const changedTask = prevTasks.find((t) => t.id === taskId);
@@ -219,13 +188,10 @@ export default function Tasks() {
     });
 
     try {
-      // 3. API request
       await api.patch(`/action-items/${taskId}`, { status: newStatus });
-      // Re-sync stats in background to keep full accuracy
       fetchStats();
     } catch (err) {
       console.error('Failed to update task status:', err);
-      // 4. Rollback
       setTasks(prevTasks);
       setStats(prevStats);
       setErrorMessage('Could not update task status. Reverting change.');
@@ -242,527 +208,330 @@ export default function Tasks() {
   const hasActiveFilters =
     statusFilter !== 'all' || assigneeFilter !== '' || sortBy !== 'newest';
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-800/80">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-accent-500/10 text-accent-400 border border-accent-500/20">
-              <CheckSquare className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Action Items & Tasks
-            </h1>
-          </div>
-          <p className="text-slate-400 mt-1.5 text-sm sm:text-base">
-            Track and manage all commitments, deliverables, and deadlines across your team meetings.
-          </p>
-        </div>
+  const navLinks = [
+    { label: 'Meetings', href: '/dashboard' },
+    { label: 'Tasks', href: '/tasks', active: true },
+    { label: 'Ask AI', href: '/chat' },
+  ];
 
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
+  const logoutButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleLogout}
+      className="text-xs sm:text-sm font-semibold"
+    >
+      Log out
+    </Button>
+  );
+
+  return (
+    <AppShell>
+      <TopBar navLinks={navLinks} action={logoutButton} />
+
+      <div className="w-full px-6 lg:px-10 py-10 flex-1 flex flex-col gap-8">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <h1 className="text-3xl sm:text-5xl tracking-tight text-ink">
+              <span className="font-display font-extrabold uppercase">ALL </span>
+              <span className="font-display font-light italic">TASKS</span>
+            </h1>
+            <p className="font-sans text-sm sm:text-base text-muted">
+              {stats.pending_count} pending, {stats.overdue_count} overdue across all recordings.
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
               fetchStats();
               fetchTasks(true);
             }}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800 transition-all cursor-pointer"
-            title="Refresh data"
+            className="self-start sm:self-auto text-xs"
           >
             <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
-          </button>
+          </Button>
         </div>
-      </div>
 
-      {/* Error alert toast */}
-      <AnimatePresence>
+        {/* Error Alert */}
         {errorMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="mt-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
+          <div className="p-4 rounded-xl bg-status-failed-bg border border-status-failed-text/20 text-status-failed-text text-xs sm:text-sm flex items-center justify-between">
+            <span>{errorMessage}</span>
             <button
               type="button"
               onClick={() => setErrorMessage('')}
-              className="text-rose-400 hover:text-rose-200 p-1"
+              className="p-1 text-muted hover:text-ink"
             >
               <X className="w-3.5 h-3.5" />
             </button>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
-      {/* Top Stat Cards Row */}
-      <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
-        {/* Card 1: Meetings */}
-        <motion.div
-          whileHover={{ y: -2 }}
-          className="p-5 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl relative overflow-hidden flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Meetings
-            </span>
-            <div className="p-2 rounded-xl bg-accent-500/10 text-accent-400 border border-accent-500/20">
-              <Calendar className="w-4 h-4" />
+        {/* Lavender Stats Panel: 5 columns */}
+        <section className="bg-lavender rounded-[24px] border border-hairline p-6 sm:p-8 shadow-none">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 sm:gap-4 divide-y sm:divide-y-0 sm:divide-x divide-ink/15">
+            {/* Stat 1: Meetings */}
+            <div className="flex flex-col pt-3 sm:pt-0 sm:px-4 first:pt-0 first:px-0">
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
+                {statsLoading ? '—' : stats.total_meetings}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-muted mt-1">
+                Meetings
+              </span>
+            </div>
+
+            {/* Stat 2: Total tasks */}
+            <div className="flex flex-col pt-3 sm:pt-0 sm:px-4">
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
+                {statsLoading ? '—' : stats.total_action_items}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-muted mt-1">
+                Total tasks
+              </span>
+            </div>
+
+            {/* Stat 3: Pending */}
+            <div className="flex flex-col pt-3 sm:pt-0 sm:px-4">
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
+                {statsLoading ? '—' : stats.pending_count}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-muted mt-1">
+                Pending
+              </span>
+            </div>
+
+            {/* Stat 4: Done */}
+            <div className="flex flex-col pt-3 sm:pt-0 sm:px-4">
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
+                {statsLoading ? '—' : stats.done_count}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-muted mt-1">
+                Done
+              </span>
+            </div>
+
+            {/* Stat 5: Overdue (danger text color) */}
+            <div className="flex flex-col pt-3 sm:pt-0 sm:px-4 col-span-2 sm:col-span-1">
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-status-failed-text leading-tight">
+                {statsLoading ? '—' : stats.overdue_count}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-status-failed-text mt-1">
+                Overdue
+              </span>
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              {statsLoading ? (
-                <span className="inline-block w-8 h-7 bg-slate-800 animate-pulse rounded" />
-              ) : (
-                <CountUp target={stats.total_meetings} />
-              )}
-            </span>
-            <span className="text-xs text-slate-400 font-medium">Recorded</span>
-          </div>
-        </motion.div>
+        </section>
 
-        {/* Card 2: Total Tasks */}
-        <motion.div
-          whileHover={{ y: -2 }}
-          className="p-5 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl relative overflow-hidden flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Total Tasks
+        {/* Filter & Control Toolbar */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Status Filter Pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-sans text-xs font-semibold text-muted uppercase tracking-wider mr-1">
+              Status:
             </span>
-            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              <Layers className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              {statsLoading ? (
-                <span className="inline-block w-8 h-7 bg-slate-800 animate-pulse rounded" />
-              ) : (
-                <CountUp target={stats.total_action_items} />
-              )}
-            </span>
-            <span className="text-xs text-sky-400 font-medium">Action items</span>
-          </div>
-        </motion.div>
-
-        {/* Card 3: Pending */}
-        <motion.div
-          whileHover={{ y: -2 }}
-          className="p-5 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl relative overflow-hidden flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Pending
-            </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              {statsLoading ? (
-                <span className="inline-block w-8 h-7 bg-slate-800 animate-pulse rounded" />
-              ) : (
-                <CountUp target={stats.pending_count} />
-              )}
-            </span>
-            <span className="text-xs text-amber-400 font-medium">In progress</span>
-          </div>
-        </motion.div>
-
-        {/* Card 4: Done */}
-        <motion.div
-          whileHover={{ y: -2 }}
-          className="p-5 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl relative overflow-hidden flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Done
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              {statsLoading ? (
-                <span className="inline-block w-8 h-7 bg-slate-800 animate-pulse rounded" />
-              ) : (
-                <CountUp target={stats.done_count} />
-              )}
-            </span>
-            <span className="text-xs text-emerald-400 font-medium">Completed</span>
-          </div>
-        </motion.div>
-
-        {/* Card 5: Overdue (Highlighted in Warning / Alert Color) */}
-        <motion.div
-          whileHover={{ y: -2 }}
-          className={`p-5 backdrop-blur-md rounded-2xl relative overflow-hidden flex flex-col justify-between border transition-colors col-span-2 sm:col-span-1 ${
-            stats.overdue_count > 0
-              ? 'bg-rose-950/20 border-rose-500/40 shadow-sm shadow-rose-500/10'
-              : 'bg-slate-900/60 border-slate-800/80'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span
-              className={`text-[11px] font-semibold uppercase tracking-wider ${
-                stats.overdue_count > 0 ? 'text-rose-400' : 'text-slate-400'
-              }`}
-            >
-              Overdue
-            </span>
-            <div
-              className={`p-2 rounded-xl border ${
-                stats.overdue_count > 0
-                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                  : 'bg-slate-800/60 text-slate-400 border-slate-700/50'
-              }`}
-            >
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span
-              className={`text-2xl sm:text-3xl font-bold tracking-tight ${
-                stats.overdue_count > 0 ? 'text-rose-400' : 'text-white'
-              }`}
-            >
-              {statsLoading ? (
-                <span className="inline-block w-8 h-7 bg-slate-800 animate-pulse rounded" />
-              ) : (
-                <CountUp target={stats.overdue_count} />
-              )}
-            </span>
-            <span
-              className={`text-xs font-medium ${
-                stats.overdue_count > 0 ? 'text-rose-400' : 'text-slate-400'
-              }`}
-            >
-              Past deadline
-            </span>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Filter and Control Toolbar */}
-      <div className="mt-8 p-4 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        {/* Left: Filter Chips (All / Pending / Done) */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-slate-400 mr-1 flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-accent-400" />
-            Status:
-          </span>
-          {[
-            { id: 'all', label: 'All', count: stats.total_action_items },
-            { id: 'pending', label: 'Pending', count: stats.pending_count },
-            { id: 'done', label: 'Done', count: stats.done_count },
-          ].map((chip) => {
-            const active = statusFilter === chip.id;
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => setStatusFilter(chip.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  active
-                    ? 'bg-accent-500/20 text-accent-300 border border-accent-500/40 shadow-sm shadow-accent-500/10'
-                    : 'bg-slate-950/40 text-slate-400 hover:text-slate-200 border border-slate-800/80 hover:border-slate-700'
-                }`}
-              >
-                <span>{chip.label}</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+            {[
+              { id: 'all', label: 'All', count: stats.total_action_items },
+              { id: 'pending', label: 'Pending', count: stats.pending_count },
+              { id: 'done', label: 'Done', count: stats.done_count },
+            ].map((chip) => {
+              const active = statusFilter === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setStatusFilter(chip.id)}
+                  className={`px-4 py-1.5 rounded-pill font-sans text-xs sm:text-sm font-medium transition-colors flex items-center gap-1.5 ${
                     active
-                      ? 'bg-accent-500/30 text-accent-200 font-bold'
-                      : 'bg-slate-800/80 text-slate-400'
+                      ? 'bg-ink text-frame'
+                      : 'bg-white border border-hairline text-muted hover:text-ink'
                   }`}
                 >
-                  {chip.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Right: Assignee Dropdown & Sort Toggle */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Assignee Filter Dropdown */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
-              <User className="w-3.5 h-3.5 text-slate-500" />
-              Assignee:
-            </span>
-            <select
-              value={assigneeFilter}
-              onChange={(e) => setAssigneeFilter(e.target.value)}
-              className="bg-slate-950/80 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500/50 cursor-pointer"
-            >
-              <option value="">All Assignees</option>
-              {availableAssignees.hasUnassigned && (
-                <option value="unassigned">Unassigned</option>
-              )}
-              {availableAssignees.names.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+                  <span>{chip.label}</span>
+                  <span className="font-mono text-[11px] opacity-80">
+                    {chip.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Sort Toggle (Newest / By deadline) */}
-          <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
-            <button
-              type="button"
-              onClick={() => setSortBy('newest')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                sortBy === 'newest'
-                  ? 'bg-slate-800 text-white font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Newest
-            </button>
-            <button
-              type="button"
-              onClick={() => setSortBy('deadline')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                sortBy === 'deadline'
-                  ? 'bg-slate-800 text-white font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              By deadline
-            </button>
-          </div>
-
-          {/* Clear filters button if active */}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="text-xs text-slate-400 hover:text-rose-400 transition-colors px-2 py-1 flex items-center gap-1 cursor-pointer"
-              title="Reset all filters"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Reset</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Task List Section */}
-      <div className="mt-6">
-        {loading ? (
-          /* Loading Skeleton */
-          <div className="space-y-3">
-            {[1, 2, 3, 4].map((n) => (
-              <div
-                key={n}
-                className="p-4 sm:p-5 bg-slate-900/40 border border-slate-800/60 rounded-2xl flex items-start gap-3.5 animate-pulse"
+          {/* Right: Assignee Select & Sort Toggle */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Assignee select */}
+            <div className="flex items-center gap-2">
+              <span className="font-sans text-xs font-medium text-muted">Assignee:</span>
+              <select
+                value={assigneeFilter}
+                onChange={(e) => setAssigneeFilter(e.target.value)}
+                className="h-10 px-3.5 bg-white border border-hairline text-ink font-sans text-xs sm:text-sm rounded-pill focus:outline-none focus:border-ink cursor-pointer"
               >
-                <div className="w-5 h-5 rounded-md bg-slate-800 mt-0.5 shrink-0" />
-                <div className="flex-1 space-y-2.5">
-                  <div className="h-4 bg-slate-800 rounded w-3/4" />
-                  <div className="flex items-center gap-3 pt-1">
-                    <div className="h-5 bg-slate-800/80 rounded-lg w-24" />
-                    <div className="h-5 bg-slate-800/80 rounded-lg w-28" />
-                    <div className="h-5 bg-slate-800/80 rounded-lg w-32" />
+                <option value="">All Assignees</option>
+                {availableAssignees.hasUnassigned && (
+                  <option value="unassigned">Unassigned</option>
+                )}
+                {availableAssignees.names.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort Toggle (Newest / By deadline) */}
+            <div className="flex items-center bg-white border border-hairline rounded-pill p-0.5">
+              <button
+                type="button"
+                onClick={() => setSortBy('newest')}
+                className={`px-3 py-1 rounded-pill font-sans text-xs font-medium transition-colors ${
+                  sortBy === 'newest'
+                    ? 'bg-ink text-frame'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                Newest
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortBy('deadline')}
+                className={`px-3 py-1 rounded-pill font-sans text-xs font-medium transition-colors ${
+                  sortBy === 'deadline'
+                    ? 'bg-ink text-frame'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                By deadline
+              </button>
+            </div>
+
+            {/* Reset Filters button */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="font-sans text-xs text-muted hover:text-ink flex items-center gap-1 transition-colors px-2 py-1"
+                title="Reset filters"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Task Rows Card */}
+        <div>
+          {loading ? (
+            /* Flat Skeleton Loader */
+            <div className="bg-white rounded-[16px] border border-hairline divide-y divide-hairline">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="p-4 px-6 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5 flex-1">
+                    <div className="w-5 h-5 rounded-[6px] bg-frame border border-hairline animate-pulse shrink-0" />
+                    <div className="h-4 w-2/3 bg-frame rounded animate-pulse" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-6 w-20 rounded-pill bg-frame animate-pulse" />
+                    <div className="h-4 w-16 rounded bg-frame animate-pulse" />
                   </div>
                 </div>
+              ))}
+            </div>
+          ) : tasks.length === 0 ? (
+            /* Friendly Empty State */
+            <div className="bg-white rounded-[16px] border border-hairline p-12 text-center flex flex-col items-center justify-center gap-3 shadow-none">
+              <h2 className="font-display font-bold text-lg text-ink">
+                {hasActiveFilters ? 'No tasks match current filters' : 'No action items found'}
+              </h2>
+              <p className="font-sans text-sm text-muted max-w-sm">
+                {hasActiveFilters
+                  ? 'Try selecting "All" or choosing another assignee.'
+                  : 'Tasks are automatically extracted when meeting recordings are processed.'}
+              </p>
+              <div className="pt-2">
+                {hasActiveFilters ? (
+                  <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                    Clear Filters
+                  </Button>
+                ) : (
+                  <Button to="/upload" variant="primary" size="sm">
+                    Upload a recording
+                  </Button>
+                )}
               </div>
-            ))}
-          </div>
-        ) : tasks.length === 0 ? (
-          /* Friendly Empty State */
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-12 text-center bg-slate-900/30 border border-slate-800/60 rounded-2xl flex flex-col items-center justify-center"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-400 mb-4 shadow-inner">
-              <Inbox className="w-7 h-7 text-slate-400 stroke-[1.8]" />
             </div>
-            <h3 className="text-lg font-bold text-white tracking-tight">
-              {hasActiveFilters ? 'No tasks match current filters' : 'No action items found'}
-            </h3>
-            <p className="text-sm text-slate-400 mt-1.5 max-w-md mx-auto leading-relaxed">
-              {hasActiveFilters
-                ? 'Try switching to "All" or choosing another assignee to view items.'
-                : 'Action items are automatically extracted when meeting recordings are processed.'}
-            </p>
-
-            <div className="mt-5 flex items-center gap-3">
-              {hasActiveFilters ? (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-accent-500 hover:bg-accent-400 text-slate-950 transition-all cursor-pointer shadow-md shadow-accent-500/20"
-                >
-                  Clear Filters
-                </button>
-              ) : (
-                <Link
-                  to="/upload"
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-accent-500 hover:bg-accent-400 text-slate-950 transition-all shadow-md shadow-accent-500/20"
-                >
-                  Upload a Meeting
-                </Link>
-              )}
-            </div>
-          </motion.div>
-        ) : (
-          /* Task items list */
-          <ul className="space-y-3">
-            <AnimatePresence initial={false}>
+          ) : (
+            /* White Card with Task Rows */
+            <div className="bg-white rounded-[16px] border border-hairline overflow-hidden divide-y divide-hairline shadow-none">
               {tasks.map((task) => {
                 const isDone = task.status === 'done';
                 const overdue = isTaskOverdue(task);
                 const deadlineFormatted = formatDeadlineDate(task.deadline_date);
+                const speakerTint = task.assigned_to ? getSpeakerTint(task.assigned_to) : 'bg-frame';
 
                 return (
-                  <motion.li
+                  <div
                     key={task.id}
-                    layout
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.97 }}
-                    transition={{ duration: 0.18 }}
-                    className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-start gap-3.5 sm:gap-4 ${
-                      isDone
-                        ? 'bg-slate-950/30 border-slate-800/40 opacity-75'
-                        : overdue
-                        ? 'bg-slate-950/60 border-rose-500/30 hover:border-rose-500/50'
-                        : 'bg-slate-950/60 border-slate-800/90 hover:border-slate-700'
-                    }`}
+                    className="p-4 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-frame/50 transition-colors"
                   >
-                    {/* Top / Left: Checkbox + Task Text */}
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      {/* Interactive Accessible Checkbox */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleTaskStatus(task.id, task.status)}
-                        className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 cursor-pointer ${
-                          isDone
-                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-500/30'
-                            : 'border-slate-600 bg-slate-900 hover:border-accent-400 text-transparent'
+                    {/* Left: Checkbox & Task Title */}
+                    <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                      <input
+                        id={`task-${task.id}`}
+                        type="checkbox"
+                        checked={isDone}
+                        onChange={() => handleToggleTaskStatus(task.id, task.status)}
+                        className="mt-0.5 sm:mt-0 w-5 h-5 rounded-[6px] border-[1.5px] border-hairline text-ink focus:ring-0 cursor-pointer shrink-0"
+                      />
+                      <label
+                        htmlFor={`task-${task.id}`}
+                        className={`font-sans text-sm sm:text-base leading-snug cursor-pointer select-none truncate ${
+                          isDone ? 'line-through text-muted' : 'text-ink font-medium'
                         }`}
-                        title={isDone ? 'Mark as pending' : 'Mark as completed'}
-                        aria-label={isDone ? 'Mark as pending' : 'Mark as completed'}
                       >
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </button>
-
-                      <div className="flex-1 min-w-0">
-                        {/* Task Title */}
-                        <p
-                          className={`text-sm sm:text-base leading-snug transition-colors break-words ${
-                            isDone
-                              ? 'line-through text-slate-400'
-                              : 'text-slate-100 font-medium'
-                          }`}
-                        >
-                          {task.task}
-                        </p>
-
-                        {/* Metadata row: Assignee, Deadline, Overdue Badge, Meeting Link */}
-                        <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs">
-                          {/* Assignee Chip */}
-                          {task.assigned_to && task.assigned_to.trim() ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent-500/10 text-accent-300 border border-accent-500/20 font-medium">
-                              <User className="w-3.5 h-3.5 text-accent-400" />
-                              <span>{task.assigned_to.trim()}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/50 text-slate-400 border border-slate-700/50 italic">
-                              <User className="w-3.5 h-3.5 text-slate-500" />
-                              <span>Unassigned</span>
-                            </span>
-                          )}
-
-                          {/* Deadline Chip */}
-                          {deadlineFormatted ? (
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-medium ${
-                                overdue
-                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
-                                  : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                              }`}
-                              title={
-                                task.deadline_text
-                                  ? `Spoken: "${task.deadline_text}"`
-                                  : 'Parsed date'
-                              }
-                            >
-                              <Clock
-                                className={`w-3.5 h-3.5 ${
-                                  overdue ? 'text-rose-400' : 'text-amber-400'
-                                }`}
-                              />
-                              <span>{deadlineFormatted}</span>
-                            </span>
-                          ) : task.deadline_text && task.deadline_text.trim() ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
-                              <Clock className="w-3.5 h-3.5 text-amber-400" />
-                              <span>{task.deadline_text.trim()}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/50 text-slate-400 border border-slate-700/50 italic">
-                              <Clock className="w-3.5 h-3.5 text-slate-500" />
-                              <span>No deadline</span>
-                            </span>
-                          )}
-
-                          {/* Overdue Badge */}
-                          {overdue && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                              <AlertTriangle className="w-3.5 h-3.5 stroke-[2.2]" />
-                              <span>Overdue</span>
-                            </span>
-                          )}
-
-                          {/* Source Meeting Link */}
-                          <Link
-                            to={`/meetings/${task.meeting_id}`}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 transition-all font-medium max-w-[220px] truncate"
-                            title={`Go to meeting: ${task.meeting_title}`}
-                          >
-                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{task.meeting_title}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-500 shrink-0" />
-                          </Link>
-                        </div>
-                      </div>
+                        {task.task}
+                      </label>
                     </div>
 
-                    {/* Right / Status pill */}
-                    <div className="shrink-0 self-start sm:self-center">
+                    {/* Right: Assignee Chip, Deadline, Overdue Badge, Meeting Link */}
+                    <div className="flex items-center gap-3 flex-wrap shrink-0 pl-8 sm:pl-0">
+                      {/* Assignee Chip */}
                       <span
-                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border uppercase tracking-wider ${
-                          isDone
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                            : overdue
-                            ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                            : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                        }`}
+                        className={`inline-flex items-center px-3 py-0.5 rounded-pill ${speakerTint} border border-hairline font-sans text-xs sm:text-[13px] font-semibold text-ink shadow-none`}
                       >
-                        {isDone ? 'Done' : overdue ? 'Overdue' : 'Pending'}
+                        {task.assigned_to || 'Unassigned'}
                       </span>
+
+                      {/* Deadline */}
+                      <span className="font-mono text-xs uppercase text-muted font-semibold tracking-wider">
+                        {deadlineFormatted || task.deadline_text || 'No deadline'}
+                      </span>
+
+                      {/* Overdue Badge */}
+                      {overdue && !isDone && (
+                        <Badge variant="failed">Overdue</Badge>
+                      )}
+
+                      {/* Source Meeting Link */}
+                      <Link
+                        to={`/meetings/${task.meeting_id}`}
+                        className="font-sans text-xs text-muted hover:text-ink truncate max-w-[160px] underline decoration-hairline underline-offset-4 transition-colors"
+                        title={`Go to meeting: ${task.meeting_title}`}
+                      >
+                        {task.meeting_title} →
+                      </Link>
                     </div>
-                  </motion.li>
+                  </div>
                 );
               })}
-            </AnimatePresence>
-          </ul>
-        )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      <Footer />
+    </AppShell>
   );
 }

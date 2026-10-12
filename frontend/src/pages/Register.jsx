@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Bot, User, Mail, Lock, ArrowRight, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import api from '../services/api';
+import { AppShell, TopBar, Button, Footer } from '../components/ui';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -43,7 +43,6 @@ export default function Register() {
         name: name.trim() || null,
       });
 
-      // Redirect to login upon successful registration
       navigate('/login', {
         state: { message: 'Account created successfully! Please sign in.' },
         replace: true,
@@ -54,147 +53,173 @@ export default function Register() {
         typeof detail === 'string'
           ? detail
           : Array.isArray(detail)
-          ? detail[0]?.msg || 'Validation error'
-          : 'Failed to create account. Please try again.';
+            ? detail[0]?.msg || 'Validation error'
+            : 'Failed to create account. Please try again.';
       setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  const topBarAction = (
+    <Button to="/login" variant="outline" size="sm">
+      Log in
+    </Button>
+  );
+
   return (
-    <div className="flex-1 flex items-center justify-center px-4 py-12">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-md bg-slate-900/70 backdrop-blur-xl border border-slate-800/90 rounded-2xl shadow-2xl p-8 sm:p-10 relative overflow-hidden"
-      >
-        {/* Decorative ambient glow */}
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-accent-500/10 rounded-full blur-3xl pointer-events-none" />
+    <AppShell>
+      <TopBar action={topBarAction} />
 
-        {/* Brand Icon & Heading */}
-        <div className="text-center mb-8">
-          <motion.div
-            whileHover={{ scale: 1.08 }}
-            className="w-14 h-14 mx-auto mb-4 bg-gradient-to-tr from-accent-600/30 to-teal-400/20 text-accent-400 rounded-2xl flex items-center justify-center border border-accent-500/30 shadow-lg shadow-accent-500/10"
-          >
-            <Bot className="w-7 h-7 text-accent-400" />
-          </motion.div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Create your account</h1>
-          <p className="text-sm text-slate-400 mt-2">
-            Start transforming meetings into actionable team intelligence
-          </p>
+      <div className="w-full px-6 lg:px-10 py-12 flex-1 flex items-center justify-center">
+        <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+          {/* Left: Form in White Card */}
+          <div className="bg-white rounded-[20px] border border-hairline p-8 sm:p-10 flex flex-col justify-between shadow-none">
+            <div className="flex flex-col gap-6">
+              {/* Header */}
+              <div className="flex flex-col gap-1.5">
+                <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-ink tracking-tight">
+                  Create an account
+                </h1>
+                <p className="font-sans text-sm text-muted">
+                  Get started with structured team memory.
+                </p>
+              </div>
+
+              {/* Error Alert */}
+              {error && (
+                <div className="p-3.5 bg-status-failed-bg border border-status-failed-text/20 rounded-xl text-status-failed-text text-xs flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                {/* Name Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="register-name"
+                    className="font-sans text-xs font-semibold text-muted uppercase tracking-wider"
+                  >
+                    Full Name
+                  </label>
+                  <input
+                    id="register-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Radhika Kandalkar"
+                    disabled={loading}
+                    className="w-full h-12 px-4 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:border-ink focus:outline-none transition-colors disabled:opacity-50"
+                  />
+                </div>
+
+                {/* Email Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="register-email"
+                    className="font-sans text-xs font-semibold text-muted uppercase tracking-wider"
+                  >
+                    Email Address
+                  </label>
+                  <input
+                    id="register-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    disabled={loading}
+                    className="w-full h-12 px-4 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:border-ink focus:outline-none transition-colors disabled:opacity-50"
+                  />
+                </div>
+
+                {/* Password Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="register-password"
+                    className="font-sans text-xs font-semibold text-muted uppercase tracking-wider"
+                  >
+                    Password
+                  </label>
+                  <div className="relative flex items-center">
+                    <input
+                      id="register-password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={loading}
+                      className="w-full h-12 pl-4 pr-11 bg-frame border border-hairline rounded-input font-sans text-sm text-ink placeholder:text-muted/60 focus:border-ink focus:outline-none transition-colors disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 text-muted hover:text-ink transition-colors p-1"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="font-sans text-[11px] text-muted">
+                    Must be at least 6 characters
+                  </p>
+                </div>
+
+                {/* Submit Pill Button */}
+                <div className="pt-2">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    loading={loading}
+                    className="w-full"
+                  >
+                    Create account
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            {/* Switch to Login Link */}
+            <div className="mt-8 pt-6 border-t border-hairline text-center">
+              <p className="font-sans text-xs text-muted">
+                Already have an account?{' '}
+                <Link
+                  to="/login"
+                  className="font-semibold text-ink underline decoration-hairline underline-offset-4 hover:text-black transition-colors"
+                >
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          </div>
+
+          {/* Right: Lavender Panel (Hidden on Mobile) */}
+          <div className="hidden md:flex flex-col justify-between bg-lavender rounded-[20px] border border-hairline p-8 sm:p-10 shadow-none">
+            <div className="flex flex-col gap-4 my-auto">
+              <h2 className="font-display font-extrabold text-2xl lg:text-3xl text-ink leading-tight">
+                Turn meetings into action.
+              </h2>
+              <p className="font-sans text-sm lg:text-base text-ink leading-relaxed">
+                Upload recordings to get searchable transcripts, auto-detected action items with owners, and key decisions.
+              </p>
+            </div>
+
+            {/* Honest Privacy Note */}
+            <div className="flex items-center gap-2 pt-6 border-t border-ink/15">
+              <span className="w-2 h-2 rounded-full bg-status-ready-text shrink-0" />
+              <p className="font-sans text-xs text-ink/80 leading-snug">
+                Transcription runs on your own computer. Summaries and chat use Google Gemini.
+              </p>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Error Banner */}
-        {error && (
-          <div className="mb-5 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Full Name
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                <User className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Radhika Kandalkar"
-                disabled={loading}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all disabled:opacity-50"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Email Address
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                <Mail className="w-4 h-4" />
-              </div>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                disabled={loading}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all disabled:opacity-50"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                <Lock className="w-4 h-4" />
-              </div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                disabled={loading}
-                className="w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all disabled:opacity-50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1.5">Must be at least 6 characters long</p>
-          </div>
-
-          <motion.button
-            whileHover={!loading ? { scale: 1.015 } : {}}
-            whileTap={!loading ? { scale: 0.985 } : {}}
-            type="submit"
-            disabled={loading}
-            className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-accent-500 to-teal-400 hover:from-accent-400 hover:to-teal-300 text-slate-950 font-semibold rounded-xl text-sm transition-all shadow-lg shadow-accent-500/20 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Creating account...</span>
-              </>
-            ) : (
-              <>
-                <span>Create Account</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </motion.button>
-        </form>
-
-        {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-slate-800/80 text-center">
-          <p className="text-xs text-slate-400">
-            Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-accent-400 hover:text-accent-300 transition-colors">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </motion.div>
-    </div>
+      <Footer />
+    </AppShell>
   );
 }
