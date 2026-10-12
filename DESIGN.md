@@ -296,16 +296,16 @@ Every page is housed within a centered architectural artboard:
 ```
 
 ### 5.2 Landing Page Layout
-1. **Top Navigation**: Height 80px, brand wordmark left, links (`How it works`, `Features`, `Demo`) center, outlined pill button ("Log in") right.
+1. **Top Navigation**: Height 80px, brand wordmark left, links (`How it works`, `Features` only; no "Demo" link) center, outlined pill button ("Log in") right.
 2. **Hero Section** (`pt-16 pb-12 px-6 lg:px-10`):
    - **Display Headline**: `TURN MEETINGS INTO ACTION` (Inter 88px Extrabold + Light Italic, max-w-6xl).
-   - **Hero Lavender Block** (`bg-[#DDD9F0]`, `rounded-[24px]`, border `1px solid #DEDAD6`):
+   - **Hero Lavender Block** (`bg-[#DDD9F0]`, `rounded-[24px]`, border `1px solid #DEDAD6`, no decorative curved lines):
      - **Left Column** (5 of 12 cols / ~42%):
        - Core proposition: "Upload a recording. Get a transcript, a summary, action items and decisions, then ask questions across all your meetings."
        - Action buttons: Primary pill "Get started" + Outlined pill "Log in".
        - Privacy footnote: Green bullet dot + "Transcription runs on your own computer. Summaries and chat use Google Gemini."
      - **Right Column** (7 of 12 cols / ~58%):
-       - Browser preview card (`bg-white`, `rounded-[20px]`, border `1px solid #DEDAD6`):
+       - Browser preview card (`bg-white`, `rounded-[20px]`, border `1px solid #DEDAD6`, no shadow):
          - Chrome bar with 3 dots and title ("Sprint review", "8 Oct 2026", "Ready" badge).
          - Tab row: Summary, Transcript (active), Action items, Decisions.
          - Card body: Transcript snippet with timestamps, 2 action item rows with checkboxes, and a decision callout.
@@ -330,7 +330,7 @@ Every page is housed within a centered architectural artboard:
 5. **Meetings Table Card**:
    - White card (`rounded-[16px]`, border `1px solid #DEDAD6`).
    - Monospace uppercase column headers: `TITLE`, `DATE`, `DURATION`, `STATUS`, `→`.
-   - Rows for each recording with dates, durations, status badges, and hover row shift.
+   - Rows for each recording with dates, durations, status badges, and hover row shift. Failed meetings display a "Delete" action (no "Retry" action anywhere).
 6. **Sub-table Action**: Text link "Ask across all meetings →".
 7. **Footer**: "Built by Radhika" and "GitHub".
 
@@ -409,10 +409,13 @@ Motion should feel calm, instant, and structural—never theatrical or distracti
 Under no circumstances should any of the following patterns appear in any page:
 
 - ❌ **No Gradients**: No CSS linear gradients, radial gradients, or mesh gradients. All surfaces are flat matte fills.
-- ❌ **No Shadows**: No drop shadows, ambient blur elevation (`box-shadow`), or card elevation layers (`box-shadow: none !important;`).
+- ❌ **No Shadows Anywhere**: No drop shadows, ambient blur elevation (`box-shadow`), or card elevation layers (`box-shadow: none !important;`), including product preview cards and popovers.
+- ❌ **No Decorative Curved Lines**: No wavy SVG illustrations or decorative background swooshes for now.
+- ❌ **No "Retry" Action**: Failed items or meetings offer a "Delete" action only. No "Retry" button or action anywhere.
+- ❌ **No Material Theme Tokens**: Do not import or copy Material Theme tokens (`surface-container-highest`, `on-tertiary-fixed`, etc.) from Stitch HTML.
 - ❌ **No Glassmorphism / Glow**: No `backdrop-filter: blur()`, no translucent frosted glass, no neon colored glow outlines.
 - ❌ **No Emoji Decoration**: Never use emoji icons in headings, badges, tabs, cards, or labels (e.g. no 🎙️, ✨, 📌, 🚀 in the UI).
 - ❌ **No Bottom Tab Bars**: Mobile navigation collapses cleanly into top header patterns, never bottom mobile app tab bars.
-- ❌ **No Extra Navigation Items**: Restrict navigation strictly to: `Meetings`, `Tasks`, `Ask AI`, `Log in`, and `Log out`.
+- ❌ **No Extra Navigation Items**: Restrict navigation strictly to: `Meetings`, `Tasks`, `Ask AI`, `Log in`, and `Log out`. (On Landing: `How it works`, `Features`, `Log in`, `Get started` only).
 - ❌ **No Technical Jargon / Sci-Fi Badges**: No pseudo-terminal brackets or decorative labels like `[ 01 // OVERVIEW ]`, `[ SYSTEM_READY ]`, or `MODULE_V2`.
-- ❌ **No Arbitrary Monospace**: Do not render body copy, speaker names, button text, or section headers in `JetBrains Mono`. Monospace is exclusively reserved for timestamps, dates, durations, status codes, and citations.
+- ❌ **No Arbitrary Monospace**: Do not render body copy, speaker names, button text, or section headers in `JetBrains Mono`. Monospace is exclusively reserved for timestamps, dates, durations, and status badges.
