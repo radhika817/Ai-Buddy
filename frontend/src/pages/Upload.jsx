@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, FileAudio, AlertCircle, Info, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { AppShell, TopBar, Button, Footer } from '../components/ui';
 
@@ -14,6 +15,7 @@ export default function Upload() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [demoMode, setDemoMode] = useState(false);
   const [demoBanner, setDemoBanner] = useState('');
@@ -119,8 +121,12 @@ export default function Upload() {
         },
       });
 
-      // Redirect to Dashboard on success
-      navigate('/dashboard');
+      // Flash success before navigating
+      setUploadProgress(100);
+      setIsSuccess(true);
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 400);
     } catch (err) {
       if (err.response?.status === 503) {
         const detail =
@@ -173,6 +179,21 @@ export default function Upload() {
               Upload audio or video files to transcribe and analyze.
             </p>
           </div>
+
+          {/* Success Banner (Short fade for success state) */}
+          <AnimatePresence>
+            {isSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="p-4 bg-status-ready-bg border border-status-ready-text/20 rounded-card flex items-center justify-center gap-2 text-status-ready-text font-sans text-sm font-semibold"
+              >
+                <span>Upload complete! Taking you to your dashboard...</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Demo Mode Notice */}
           {demoMode && (
@@ -233,7 +254,7 @@ export default function Upload() {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`bg-white border border-dashed rounded-[20px] p-8 sm:p-12 text-center flex flex-col items-center justify-center gap-4 transition-colors ${
+              className={`bg-white border border-dashed rounded-[20px] p-8 sm:p-12 text-center flex flex-col items-center justify-center gap-4 transition-colors duration-200 ease-out ${
                 isDragging ? 'border-ink bg-frame' : 'border-hairline'
               }`}
             >
@@ -251,7 +272,12 @@ export default function Upload() {
               </div>
 
               {selectedFile ? (
-                <div className="w-full max-w-md p-4 bg-frame border border-hairline rounded-card flex items-center justify-between gap-3">
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="w-full max-w-md p-4 bg-frame border border-hairline rounded-card flex items-center justify-between gap-3"
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <FileAudio className="w-5 h-5 text-ink shrink-0" />
                     <div className="text-left truncate">
@@ -274,7 +300,7 @@ export default function Upload() {
                       <X className="w-4 h-4" />
                     </button>
                   )}
-                </div>
+                </motion.div>
               ) : (
                 <div className="flex flex-col gap-1.5 items-center">
                   <h2 className="font-display font-bold text-lg text-ink">
@@ -289,20 +315,25 @@ export default function Upload() {
                 </div>
               )}
 
-              {/* Upload Progress Bar */}
+              {/* Upload Progress Bar (ScaleX transform instead of width animation) */}
               {uploading && (
-                <div className="w-full max-w-md space-y-2 pt-2">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.15 }}
+                  className="w-full max-w-md space-y-2 pt-2"
+                >
                   <div className="flex items-center justify-between font-sans text-xs text-muted">
-                    <span>Uploading recording...</span>
+                    <span>{isSuccess ? 'Upload complete!' : 'Uploading recording...'}</span>
                     <span className="font-mono">{uploadProgress}%</span>
                   </div>
                   <div className="w-full h-2 bg-frame border border-hairline rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-ink transition-all duration-150"
-                      style={{ width: `${uploadProgress}%` }}
+                      className="h-full w-full bg-ink origin-left transition-transform duration-200 ease-out"
+                      style={{ transform: `scaleX(${uploadProgress / 100})` }}
                     />
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* Action Buttons */}

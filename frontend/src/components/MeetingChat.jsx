@@ -149,7 +149,13 @@ export default function MeetingChat({ meetingId, isReady, meetingStatus, onTimes
           )}
 
           {messages.map((msg) => (
-            <div key={msg.id} className="flex flex-col">
+            <motion.div
+              key={msg.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="flex flex-col"
+            >
               {msg.role === 'user' ? (
                 <div className="flex flex-col items-end">
                   <div className="max-w-[85%] bg-ink text-frame rounded-2xl rounded-tr-sm px-4 py-3 shadow-none">
@@ -167,18 +173,20 @@ export default function MeetingChat({ meetingId, isReady, meetingStatus, onTimes
                   </div>
                 </div>
               )}
-            </div>
+            </motion.div>
           ))}
 
-          {/* Typing Indicator: Flat three-dot indicator */}
+          {/* Typing Indicator: Flat three-dot indicator with staggered opacity pulse */}
           {loading && (
-            <div className="flex flex-col items-start">
-              <div className="flex items-center gap-1.5 px-4 py-3 bg-chat-bubble-ai rounded-2xl rounded-tl-sm border border-hairline/60 shadow-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse" />
-                <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse [animation-delay:200ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse [animation-delay:400ms]" />
-              </div>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex flex-col items-start"
+            >
+              <FlatTypingIndicator />
+            </motion.div>
           )}
 
           {/* Error Message */}
@@ -200,18 +208,30 @@ export default function MeetingChat({ meetingId, isReady, meetingStatus, onTimes
             <span className="font-sans text-[11px] uppercase tracking-wider text-muted font-semibold pl-1 select-none">
               Suggested
             </span>
-            <div className="flex flex-col gap-1.5">
+            <motion.div
+              initial="initial"
+              animate="animate"
+              variants={{
+                initial: {},
+                animate: { transition: { staggerChildren: 0.04 } },
+              }}
+              className="flex flex-col gap-1.5"
+            >
               {SUGGESTED_QUESTIONS.map((q, idx) => (
-                <button
+                <motion.button
                   key={idx}
                   type="button"
+                  variants={{
+                    initial: { opacity: 0, y: 4 },
+                    animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+                  }}
                   onClick={() => handleSendMessage(q)}
                   className="w-full text-left px-3.5 py-2 rounded-pill border border-hairline hover:border-ink text-ink font-sans text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
                 >
                   {q}
-                </button>
+                </motion.button>
               ))}
-            </div>
+            </motion.div>
           </div>
         )}
 

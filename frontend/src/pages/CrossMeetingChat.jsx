@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUp, RotateCcw, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { AppShell, TopBar, Button, Footer } from '../components/ui';
+import { FlatTypingIndicator } from '../lib/motion';
 
 const SUGGESTED_QUESTIONS = [
   'What decisions were made recently?',
@@ -79,9 +81,12 @@ function renderAnswerWithCitations(content, sources = [], onCitationClick) {
             matchedSource?.start_time !== undefined ? matchedSource.start_time : parsedSeconds;
 
           return (
-            <button
+            <motion.button
               key={subIdx}
               type="button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.15, ease: 'easeOut' }}
               onClick={() => onCitationClick(meetingId, targetTime)}
               title={
                 meetingId
@@ -92,7 +97,7 @@ function renderAnswerWithCitations(content, sources = [], onCitationClick) {
             >
               <span className="truncate max-w-[140px] font-sans font-medium">{rawTitle}</span>
               <span>{timeStr}</span>
-            </button>
+            </motion.button>
           );
         })}
       </span>
@@ -289,25 +294,43 @@ export default function CrossMeetingChat() {
                 </div>
 
                 {/* Suggested Question Pills */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl">
+                <motion.div
+                  initial="initial"
+                  animate="animate"
+                  variants={{
+                    initial: {},
+                    animate: { transition: { staggerChildren: 0.04 } },
+                  }}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl"
+                >
                   {SUGGESTED_QUESTIONS.map((q, idx) => (
-                    <button
+                    <motion.button
                       key={idx}
                       type="button"
+                      variants={{
+                        initial: { opacity: 0, y: 4 },
+                        animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+                      }}
                       onClick={() => handleSendMessage(q)}
                       className="p-3.5 rounded-pill border border-hairline hover:border-ink bg-white font-sans text-xs sm:text-sm text-ink text-left transition-colors flex items-center justify-between gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
                     >
                       <span className="truncate">{q}</span>
                       <span className="text-muted text-xs shrink-0">→</span>
-                    </button>
+                    </motion.button>
                   ))}
-                </div>
+                </motion.div>
               </div>
             )}
 
             {/* Message Bubbles */}
             {messages.map((msg) => (
-              <div key={msg.id} className="flex flex-col gap-2">
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex flex-col gap-2"
+              >
                 {msg.role === 'user' ? (
                   <div className="flex flex-col items-end">
                     <div className="max-w-[85%] bg-ink text-frame rounded-2xl rounded-tr-sm px-4 py-3 shadow-none">
@@ -340,48 +363,58 @@ export default function CrossMeetingChat() {
                           )}
                         </button>
 
-                        {expandedSources[msg.id] && (
-                          <div className="mt-2 flex flex-col gap-2">
-                            {msg.sources.map((src, srcIdx) => (
-                              <div
-                                key={srcIdx}
-                                onClick={() => handleCitationClick(src.meeting_id, src.start_time)}
-                                title="Click to view segment in meeting transcript"
-                                className="p-3 rounded-xl bg-white border border-hairline hover:border-ink transition-colors cursor-pointer flex flex-col gap-1"
-                              >
-                                <div className="flex items-center justify-between text-xs gap-2">
-                                  <span className="font-sans font-semibold text-ink truncate">
-                                    {src.meeting_title}
-                                  </span>
-                                  <span className="font-mono text-xs text-muted shrink-0">
-                                    {formatSecondsToMMSS(src.start_time)}
-                                  </span>
+                        <AnimatePresence>
+                          {expandedSources[msg.id] && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.15 }}
+                              className="mt-2 flex flex-col gap-2"
+                            >
+                              {msg.sources.map((src, srcIdx) => (
+                                <div
+                                  key={srcIdx}
+                                  onClick={() => handleCitationClick(src.meeting_id, src.start_time)}
+                                  title="Click to view segment in meeting transcript"
+                                  className="p-3 rounded-xl bg-white border border-hairline hover:border-ink transition-colors cursor-pointer flex flex-col gap-1"
+                                >
+                                  <div className="flex items-center justify-between text-xs gap-2">
+                                    <span className="font-sans font-semibold text-ink truncate">
+                                      {src.meeting_title}
+                                    </span>
+                                    <span className="font-mono text-xs text-muted shrink-0">
+                                      {formatSecondsToMMSS(src.start_time)}
+                                    </span>
+                                  </div>
+                                  {src.text_preview && (
+                                    <p className="font-sans text-xs text-muted line-clamp-2">
+                                      {src.text_preview.slice(0, 150)}
+                                    </p>
+                                  )}
                                 </div>
-                                {src.text_preview && (
-                                  <p className="font-sans text-xs text-muted line-clamp-2">
-                                    {src.text_preview.slice(0, 150)}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
 
             {/* Flat Typing Indicator */}
             {loading && (
-              <div className="flex flex-col items-start">
-                <div className="flex items-center gap-1.5 px-4 py-3 bg-chat-bubble-ai rounded-2xl rounded-tl-sm border border-hairline/60">
-                  <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse [animation-delay:200ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-ink/70 animate-pulse [animation-delay:400ms]" />
-                </div>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex flex-col items-start"
+              >
+                <FlatTypingIndicator />
+              </motion.div>
             )}
 
             {/* Error Message with Network Retry */}

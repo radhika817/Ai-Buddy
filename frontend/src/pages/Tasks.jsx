@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check, X, RotateCw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { AppShell, TopBar, Button, Badge, Chip, Footer } from '../components/ui';
+import { AnimatedNumber, AnimatedCheckmark } from '../lib/motion';
 
 const SPEAKER_TINTS = [
   'bg-lavender',
@@ -275,8 +277,8 @@ export default function Tasks() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 sm:gap-4 divide-y sm:divide-y-0 sm:divide-x divide-ink/15">
             {/* Stat 1: Meetings */}
             <div className="flex flex-col pt-3 sm:pt-0 sm:px-4 first:pt-0 first:px-0">
-              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
-                {statsLoading ? '—' : stats.total_meetings}
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight tabular-nums">
+                {statsLoading ? '—' : <AnimatedNumber value={stats.total_meetings} />}
               </span>
               <span className="font-sans text-xs sm:text-sm text-muted mt-1">
                 Meetings
@@ -285,8 +287,8 @@ export default function Tasks() {
 
             {/* Stat 2: Total tasks */}
             <div className="flex flex-col pt-3 sm:pt-0 sm:px-4">
-              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
-                {statsLoading ? '—' : stats.total_action_items}
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight tabular-nums">
+                {statsLoading ? '—' : <AnimatedNumber value={stats.total_action_items} />}
               </span>
               <span className="font-sans text-xs sm:text-sm text-muted mt-1">
                 Total tasks
@@ -295,8 +297,8 @@ export default function Tasks() {
 
             {/* Stat 3: Pending */}
             <div className="flex flex-col pt-3 sm:pt-0 sm:px-4">
-              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
-                {statsLoading ? '—' : stats.pending_count}
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight tabular-nums">
+                {statsLoading ? '—' : <AnimatedNumber value={stats.pending_count} />}
               </span>
               <span className="font-sans text-xs sm:text-sm text-muted mt-1">
                 Pending
@@ -305,8 +307,8 @@ export default function Tasks() {
 
             {/* Stat 4: Done */}
             <div className="flex flex-col pt-3 sm:pt-0 sm:px-4">
-              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight">
-                {statsLoading ? '—' : stats.done_count}
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-ink leading-tight tabular-nums">
+                {statsLoading ? '—' : <AnimatedNumber value={stats.done_count} />}
               </span>
               <span className="font-sans text-xs sm:text-sm text-muted mt-1">
                 Done
@@ -315,8 +317,8 @@ export default function Tasks() {
 
             {/* Stat 5: Overdue (danger text color) */}
             <div className="flex flex-col pt-3 sm:pt-0 sm:px-4 col-span-2 sm:col-span-1">
-              <span className="font-mono text-3xl sm:text-[40px] font-bold text-status-failed-text leading-tight">
-                {statsLoading ? '—' : stats.overdue_count}
+              <span className="font-mono text-3xl sm:text-[40px] font-bold text-status-failed-text leading-tight tabular-nums">
+                {statsLoading ? '—' : <AnimatedNumber value={stats.overdue_count} />}
               </span>
               <span className="font-sans text-xs sm:text-sm text-status-failed-text mt-1">
                 Overdue
