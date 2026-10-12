@@ -1,60 +1,83 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  UploadCloud,
-  Calendar,
-  Clock,
-  CheckCircle2,
-  Trash2,
-  ArrowUpRight,
-  Search,
-  Filter,
-  Loader2,
-  AlertCircle,
-
-  FileVideo,
-  Sparkles,
-  Bot,
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { AppShell, TopBar, Button, Badge, Footer } from '../components/ui';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [meetings, setMeetings] = useState([]);
+  const [taskStats, setTaskStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('all');
   const [deletingId, setDeletingId] = useState(null);
 
-  const fetchMeetings = async () => {
+  const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get('/meetings');
-      setMeetings(res.data);
+
+      // Fetch meetings and task stats in parallel
+      const [meetingsRes, statsRes] = await Promise.allSettled([
+        api.get('/meetings'),
+        api.get('/tasks/stats'),
+      ]);
+
+      if (meetingsRes.status === 'fulfilled') {
+        setMeetings(meetingsRes.value.data || []);
+      } else {
+        throw new Error('Could not load meetings from the server.');
+      }
+
+      if (statsRes.status === 'fulfilled') {
+        setTaskStats(statsRes.value.data || null);
+      } else {
+        setTaskStats(null);
+      }
     } catch (err) {
-      setError('Could not load meetings from the server. Please check backend connection.');
+      setError(
+        err.response?.data?.detail ||
+          err.message ||
+          'Could not load meetings from the server. Please check backend connection.'
+      );
     } finally {
       setLoading(false);
-
     }
   };
 
   useEffect(() => {
-    fetchMeetings();
+    fetchDashboardData();
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.dispatchEvent(new Event('auth-change'));
+    navigate('/login');
+  };
 
   const handleDelete = async (e, id, title) => {
     e.preventDefault();
     e.stopPropagation();
 
-    const confirmed = window.confirm(`Are you sure you want to delete "${title}"? This cannot be undone.`);
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${title}"? This cannot be undone.`
+    );
     if (!confirmed) return;
 
     try {
       setDeletingId(id);
       await api.delete(`/meetings/${id}`);
       setMeetings((prev) => prev.filter((m) => m.id !== id));
+
+      // Refresh task stats quietly
+      try {
+        const statsRes = await api.get('/tasks/stats');
+        setTaskStats(statsRes.data);
+      } catch {
+        // ignore
+      }
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to delete meeting.');
     } finally {
@@ -62,12 +85,15 @@ export default function Dashboard() {
     }
   };
 
+  // Format date as "8 Oct 2026"
   const formatDate = (dateString) => {
+    if (!dateString) return '—';
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return dateString;
+      return d.toLocaleDateString('en-GB', {
         day: 'numeric',
+        month: 'short',
         year: 'numeric',
       });
     } catch {
@@ -75,309 +101,442 @@ export default function Dashboard() {
     }
   };
 
+  // Format seconds as mm:ss or h:mm:ss
+  const formatDuration = (seconds) => {
+    if (seconds === null || seconds === undefined || isNaN(seconds) || seconds <= 0) {
+      return '—';
+    }
+    const totalSecs = Math.round(seconds);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    const mm = String(m).padStart(2, '0');
+    const ss = String(s).padStart(2, '0');
+    if (h > 0) {
+      return `${h}:${mm}:${ss}`;
+    }
+    return `${mm}:${ss}`;
+  };
+
   const renderStatusBadge = (status) => {
-    switch (status?.toLowerCase()) {
+    const s = status?.toLowerCase();
+    switch (s) {
       case 'ready':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
-            <CheckCircle2 className="w-3 h-3" />
-            Ready
-          </span>
-        );
+        return <Badge variant="ready">Ready</Badge>;
       case 'failed':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/25">
-            <AlertCircle className="w-3 h-3" />
-            Failed
-          </span>
-        );
+        return <Badge variant="failed">Failed</Badge>;
+      case 'uploaded':
       case 'transcribing':
       case 'analyzing':
-      case 'uploaded':
       default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/25 capitalize">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            {status || 'Processing'}
-          </span>
-        );
+        return <Badge variant="analyzing">Analyzing</Badge>;
     }
   };
 
-  const filteredMeetings = meetings.filter((m) =>
-    m.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter meetings by search query and status filter
+  const filteredMeetings = meetings.filter((m) => {
+    const matchesSearch =
+      !searchQuery ||
+      m.title?.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
 
-  const readyCount = meetings.filter((m) => m.status === 'ready').length;
-  const inProgressCount = meetings.filter((m) =>
-    ['uploaded', 'transcribing', 'analyzing'].includes(m.status)
-  ).length;
+    if (selectedFilter === 'all') return true;
+    const s = m.status?.toLowerCase();
+    if (selectedFilter === 'ready') return s === 'ready';
+    if (selectedFilter === 'processing')
+      return ['uploaded', 'transcribing', 'analyzing'].includes(s);
+    if (selectedFilter === 'failed') return s === 'failed';
+    return true;
+  });
+
+  // Real statistics derived from GET /tasks/stats or meetings list
+  const totalMeetings = taskStats?.total_meetings ?? meetings.length;
+  const openTasks = taskStats?.pending_count ?? 0;
+  const doneTasks = taskStats?.done_count ?? 0;
+
+  // Real subtitle
+  const subtitleText = `${totalMeetings} ${
+    totalMeetings === 1 ? 'recording' : 'recordings'
+  }, ${openTasks} open ${openTasks === 1 ? 'task' : 'tasks'}.`;
+
+  const navLinks = [
+    { label: 'Meetings', href: '/dashboard', active: true },
+    { label: 'Tasks', href: '/tasks' },
+    { label: 'Ask AI', href: '/chat' },
+  ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-8 border-b border-slate-800/80 gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-500/10 text-accent-400 border border-accent-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-400 animate-pulse" />
-              Connected to Neon DB
-            </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Meeting Intelligence
-          </h1>
-          <p className="text-slate-400 mt-1 text-sm sm:text-base">
-            Search, review, and query structured insights extracted from your team recordings.
-          </p>
-        </div>
+    <AppShell>
+      {/* ── TOPBAR ──────────────────────────────────────────────────────── */}
+      <TopBar
+        brandHref="/dashboard"
+        navLinks={navLinks}
+        action={
+          <Button variant="outline" size="sm" onClick={handleLogout}>
+            Log out
+          </Button>
+        }
+      />
 
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Link
-            to="/upload"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent-500 hover:bg-accent-400 text-slate-950 font-semibold rounded-xl text-sm transition-all shadow-lg shadow-accent-500/20"
-          >
-            <UploadCloud className="w-4 h-4 stroke-[2.2]" />
-            <span>Upload Recording</span>
-          </Link>
-        </motion.div>
-      </div>
-
-      {/* KPI Overview Metrics */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        <motion.div
-          whileHover={{ y: -2 }}
-          className="p-6 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl relative overflow-hidden"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Total Meetings
-            </span>
-            <div className="p-2 rounded-xl bg-accent-500/10 text-accent-400 border border-accent-500/20">
-              <Calendar className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">{meetings.length}</span>
-            <span className="text-xs text-accent-400 font-medium">Recorded</span>
-          </div>
-        </motion.div>
-
-        <motion.div
-          whileHover={{ y: -2 }}
-          className="p-6 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl relative overflow-hidden"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Ready for Review
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">{readyCount}</span>
-            <span className="text-xs text-emerald-400 font-medium">Fully processed</span>
-          </div>
-        </motion.div>
-
-        <motion.div
-          whileHover={{ y: -2 }}
-          className="p-6 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl relative overflow-hidden"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Processing Pipeline
-            </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">{inProgressCount}</span>
-            <span className="text-xs text-amber-400 font-medium">In progress</span>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Ask Across All Meetings Shortcut Card */}
-      <motion.div
-        whileHover={{ y: -2 }}
-        className="mt-6 p-4 sm:p-5 bg-gradient-to-r from-accent-950/40 via-slate-900/80 to-slate-900/60 border border-accent-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-accent-500/5"
-      >
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-accent-500/10 border border-accent-500/20 text-accent-400 flex items-center justify-center shrink-0 shadow-sm">
-            <Bot className="w-5 h-5 stroke-[2.2]" />
-          </div>
+      {/* ── INNER DASHBOARD CONTENT ────────────────────────────────────── */}
+      <div className="px-6 md:px-10 py-10 flex flex-col flex-1">
+        {/* 1. PAGE HEADER */}
+        <section className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6">
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-white">
-                Ask across all meetings
-              </h3>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-accent-500/10 text-accent-400 border border-accent-500/20">
-                Cross-Meeting AI
+            <div className="flex items-baseline flex-wrap gap-x-3.5">
+              <h1 className="font-display text-4xl sm:text-5xl lg:text-[56px] lg:leading-[60px] font-extrabold tracking-tight text-ink uppercase">
+                YOUR
+              </h1>
+              <span className="font-display text-4xl sm:text-5xl lg:text-[56px] lg:leading-[60px] font-light italic tracking-tight text-ink uppercase">
+                MEETINGS
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Query decisions, open action items, and topic changes across your team's entire meeting history.
+            <p className="font-sans text-sm sm:text-base text-muted mt-2">
+              {subtitleText}
             </p>
           </div>
-        </div>
+          <div>
+            <Button to="/upload" variant="primary" size="md">
+              Upload a recording
+            </Button>
+          </div>
+        </section>
 
-        <Link
-          to="/chat"
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-accent-500 hover:bg-accent-400 text-slate-950 font-semibold rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-accent-500/20 shrink-0 cursor-pointer"
+        {/* 2. STATS ROW (Flat Lavender Panel) */}
+        <section
+          aria-label="Key Performance Statistics"
+          className="w-full bg-lavender border border-hairline rounded-panel p-6 sm:p-8 mb-8 shadow-none"
         >
-          <span>Ask AI Buddy</span>
-          <ArrowUpRight className="w-4 h-4 stroke-[2.2]" />
-        </Link>
-      </motion.div>
+          <div className="grid grid-cols-3">
+            {/* Stat 1: Meetings */}
+            <div className="flex flex-col border-r border-ink/15 pr-4 sm:pr-8">
+              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink">
+                {totalMeetings}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-muted mt-2 font-medium">
+                Meetings
+              </span>
+            </div>
 
-      {/* Section Header with Search */}
-      <div className="mt-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-white">Your Meetings</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Click any meeting card to view details</p>
-        </div>
+            {/* Stat 2: Open Tasks */}
+            <div className="flex flex-col px-4 sm:px-8 border-r border-ink/15">
+              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink">
+                {openTasks}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-muted mt-2 font-medium">
+                Open tasks
+              </span>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            {/* Stat 3: Done */}
+            <div className="flex flex-col pl-4 sm:pl-8">
+              <span className="font-mono text-3xl sm:text-4xl lg:text-[44px] lg:leading-none font-semibold text-ink">
+                {doneTasks}
+              </span>
+              <span className="font-sans text-xs sm:text-sm text-muted mt-2 font-medium">
+                Done
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* 3. CONTROLS ROW */}
+        <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          {/* Search Pill */}
+          <div className="relative w-full sm:w-80 max-w-md">
             <input
               type="text"
-              placeholder="Search meetings..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500"
+              placeholder="Search meetings or transcripts"
+              className="w-full rounded-pill bg-surface border border-hairline px-5 py-2.5 font-sans text-sm text-ink placeholder-muted/60 focus:outline-none focus:border-ink transition-colors shadow-none"
             />
           </div>
-          <button
-            type="button"
-            onClick={fetchMeetings}
-            title="Refresh meetings"
-            className="p-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors"
+
+          {/* Filter Pill Cluster */}
+          <div
+            aria-label="Filter status"
+            className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0"
+            role="group"
           >
-            <Filter className="w-4 h-4" />
-          </button>
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'ready', label: 'Ready' },
+              { id: 'processing', label: 'Processing' },
+              { id: 'failed', label: 'Failed' },
+            ].map((filter) => {
+              const isActive = selectedFilter === filter.id;
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setSelectedFilter(filter.id)}
+                  className={`px-4 py-1.5 rounded-pill font-sans text-sm font-medium shrink-0 active:scale-95 transition-all shadow-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
+                    isActive
+                      ? 'bg-ink text-frame'
+                      : 'bg-surface border border-hairline text-muted hover:text-ink hover:border-ink'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 4. MEETINGS TABLE / STATES */}
+
+        {/* Skeleton Loader (Flat, no shimmer gradients) */}
+        {loading && (
+          <div className="bg-surface rounded-table border border-hairline overflow-hidden p-6 space-y-4 shadow-none">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between py-3 border-b border-hairline/40 last:border-0"
+              >
+                <div className="h-4 w-44 bg-hairline/60 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-hairline/60 rounded animate-pulse" />
+                <div className="h-4 w-16 bg-hairline/60 rounded animate-pulse" />
+                <div className="h-6 w-20 bg-hairline/60 rounded-pill animate-pulse" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Error State with Retry Button */}
+        {error && !loading && (
+          <div className="p-6 bg-status-failed-bg border border-status-failed-text/20 rounded-table flex flex-col sm:flex-row items-center justify-between gap-4 text-status-failed-text shadow-none">
+            <span className="font-sans text-sm">{error}</span>
+            <Button variant="outline" size="sm" onClick={fetchDashboardData}>
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {/* Empty State (No meetings in account) */}
+        {!loading && !error && meetings.length === 0 && (
+          <div className="bg-surface rounded-table border border-hairline p-12 text-center shadow-none">
+            <h3 className="font-display text-xl font-bold text-ink">
+              No meetings yet
+            </h3>
+            <p className="font-sans text-sm text-muted mt-1 mb-6 max-w-sm mx-auto">
+              Upload your first meeting recording to generate transcripts, summaries, and action items.
+            </p>
+            <Button to="/upload" variant="primary" size="md">
+              Upload a recording
+            </Button>
+          </div>
+        )}
+
+        {/* No Results State (Search/Filter returned 0) */}
+        {!loading && !error && meetings.length > 0 && filteredMeetings.length === 0 && (
+          <div className="bg-surface rounded-table border border-hairline p-10 text-center shadow-none">
+            <h3 className="font-display text-lg font-bold text-ink">
+              No matching meetings
+            </h3>
+            <p className="font-sans text-sm text-muted mt-1 mb-4">
+              {searchQuery
+                ? `No meetings match "${searchQuery}".`
+                : 'No meetings match the selected filter.'}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedFilter('all');
+              }}
+            >
+              Clear filters
+            </Button>
+          </div>
+        )}
+
+        {/* Table Card (Desktop Table + Mobile Stacked List) */}
+        {!loading && !error && filteredMeetings.length > 0 && (
+          <div className="bg-surface rounded-table border border-hairline overflow-hidden shadow-none">
+            {/* Desktop Table View (sm:table) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-frame border-b border-hairline">
+                    <th
+                      scope="col"
+                      className="font-mono text-[11px] uppercase tracking-wider text-muted px-6 py-4 font-semibold"
+                    >
+                      TITLE
+                    </th>
+                    <th
+                      scope="col"
+                      className="font-mono text-[11px] uppercase tracking-wider text-muted px-6 py-4 font-semibold"
+                    >
+                      DATE
+                    </th>
+                    <th
+                      scope="col"
+                      className="font-mono text-[11px] uppercase tracking-wider text-muted px-6 py-4 font-semibold"
+                    >
+                      DURATION
+                    </th>
+                    <th
+                      scope="col"
+                      className="font-mono text-[11px] uppercase tracking-wider text-muted px-6 py-4 font-semibold"
+                    >
+                      STATUS
+                    </th>
+                    <th
+                      scope="col"
+                      className="font-mono text-[11px] uppercase tracking-wider text-muted px-6 py-4 text-right w-24"
+                    >
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline">
+                  {filteredMeetings.map((meeting) => (
+                    <tr
+                      key={meeting.id}
+                      onClick={() => navigate(`/meetings/${meeting.id}`)}
+                      className="bg-surface hover:bg-frame/60 transition-colors cursor-pointer group"
+                    >
+                      {/* Title */}
+                      <td className="px-6 py-5 font-sans text-sm font-medium text-ink whitespace-nowrap">
+                        <span className="group-hover:underline">
+                          {meeting.title}
+                        </span>
+                      </td>
+
+                      {/* Date (JetBrains Mono) */}
+                      <td className="px-6 py-5 font-mono text-xs text-muted whitespace-nowrap">
+                        {formatDate(meeting.created_at)}
+                      </td>
+
+                      {/* Duration (JetBrains Mono) */}
+                      <td className="px-6 py-5 font-mono text-xs text-muted whitespace-nowrap">
+                        {formatDuration(meeting.duration_seconds)}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-6 py-5 whitespace-nowrap">
+                        <div className="inline-flex items-center">
+                          {renderStatusBadge(meeting.status)}
+                          {meeting.status?.toLowerCase() === 'failed' && (
+                            <button
+                              type="button"
+                              onClick={(e) =>
+                                handleDelete(e, meeting.id, meeting.title)
+                              }
+                              disabled={deletingId === meeting.id}
+                              className="font-sans text-xs text-status-failed-text underline ml-2 hover:opacity-80 cursor-pointer font-medium"
+                              title="Delete failed meeting"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Trailing Quiet Delete Action + Arrow */}
+                      <td className="px-6 py-5 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={(e) =>
+                              handleDelete(e, meeting.id, meeting.title)
+                            }
+                            disabled={deletingId === meeting.id}
+                            className="text-muted hover:text-status-failed-text p-1 text-xs font-sans transition-colors cursor-pointer font-medium"
+                            title="Delete meeting"
+                            aria-label={`Delete meeting ${meeting.title}`}
+                          >
+                            {deletingId === meeting.id ? (
+                              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
+                            ) : (
+                              <span className="hover:underline">Delete</span>
+                            )}
+                          </button>
+                          <span className="text-muted group-hover:text-ink group-hover:translate-x-0.5 inline-block transition-transform duration-150">
+                            →
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Stacked Rows View (sm:hidden, no horizontal scroll) */}
+            <div className="sm:hidden divide-y divide-hairline">
+              {filteredMeetings.map((meeting) => (
+                <div
+                  key={meeting.id}
+                  onClick={() => navigate(`/meetings/${meeting.id}`)}
+                  className="p-4 hover:bg-frame/60 transition-colors cursor-pointer flex flex-col gap-2.5"
+                >
+                  {/* Top Stack: Title + Status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-sans text-sm font-medium text-ink truncate">
+                      {meeting.title}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {renderStatusBadge(meeting.status)}
+                      {meeting.status?.toLowerCase() === 'failed' && (
+                        <button
+                          type="button"
+                          onClick={(e) =>
+                            handleDelete(e, meeting.id, meeting.title)
+                          }
+                          disabled={deletingId === meeting.id}
+                          className="font-sans text-xs text-status-failed-text underline font-medium"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom Stack: Date + Duration + Delete + Arrow */}
+                  <div className="flex items-center justify-between text-xs text-muted font-mono pt-1">
+                    <div className="flex items-center gap-2">
+                      <span>{formatDate(meeting.created_at)}</span>
+                      <span>•</span>
+                      <span>{formatDuration(meeting.duration_seconds)}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={(e) =>
+                          handleDelete(e, meeting.id, meeting.title)
+                        }
+                        disabled={deletingId === meeting.id}
+                        className="font-sans text-xs text-muted hover:text-status-failed-text underline font-medium"
+                      >
+                        Delete
+                      </button>
+                      <span>→</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 5. BELOW THE TABLE: Plain Text Link */}
+        <div className="mt-6">
+          <Link
+            to="/chat"
+            className="font-sans text-sm font-medium text-ink hover:underline inline-flex items-center gap-1.5 transition-all"
+          >
+            <span>Ask across all meetings</span>
+            <span>→</span>
+          </Link>
         </div>
       </div>
 
-      {/* Loading & Error States */}
-      {loading && (
-        <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
-          <Loader2 className="w-8 h-8 animate-spin text-accent-500" />
-          <p className="text-sm">Loading your meetings...</p>
-        </div>
-      )}
-
-      {error && !loading && (
-        <div className="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center justify-between gap-4 text-rose-300">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
-            <span className="text-sm">{error}</span>
-          </div>
-          <button
-            type="button"
-            onClick={fetchMeetings}
-            className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold rounded-lg transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && !error && meetings.length === 0 && (
-        <div className="mt-6 p-12 bg-slate-900/40 border-2 border-dashed border-slate-800 rounded-3xl text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-accent-500/10 text-accent-400 rounded-2xl flex items-center justify-center text-2xl border border-accent-500/20">
-            <FileVideo className="w-8 h-8 stroke-[1.8]" />
-          </div>
-          <h3 className="text-lg font-bold text-white">No meetings uploaded yet</h3>
-          <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
-            Upload your first meeting recording to generate transcripts, summaries, and action items.
-          </p>
-          <div className="mt-6">
-            <Link
-              to="/upload"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent-500 hover:bg-accent-400 text-slate-950 font-semibold rounded-xl text-sm transition-all shadow-md shadow-accent-500/20"
-            >
-              <UploadCloud className="w-4 h-4" />
-              <span>Upload Meeting</span>
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Grid of Real Meeting Cards */}
-      {!loading && !error && filteredMeetings.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {filteredMeetings.map((meeting) => (
-              <motion.div
-                key={meeting.id}
-                layout
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                whileHover={{ y: -4, scale: 1.01 }}
-                transition={{ duration: 0.2 }}
-                className="group relative flex flex-col bg-slate-900/60 hover:bg-slate-900/90 backdrop-blur-md border border-slate-800/80 hover:border-accent-500/40 rounded-2xl p-6 transition-all shadow-xl hover:shadow-2xl hover:shadow-accent-500/5"
-              >
-                <Link to={`/meetings/${meeting.id}`} className="flex flex-col flex-1">
-                  {/* Card Header: Date & Status Badge */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                      {formatDate(meeting.created_at)}
-                    </span>
-
-                    {renderStatusBadge(meeting.status)}
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-accent-300 transition-colors line-clamp-2">
-                    {meeting.title}
-                  </h3>
-
-                  {/* File Path / Meta */}
-                  <p className="text-xs text-slate-500 mt-2 truncate font-mono">
-                    {meeting.file_path}
-                  </p>
-
-                  {/* Highlights Footer with Delete Button */}
-                  <div className="mt-6 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs">
-                    <span className="text-slate-400 text-[11px] font-medium">
-                      ID: #{meeting.id}
-                    </span>
-
-                    <div className="flex items-center gap-2">
-                      {/* Delete Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => handleDelete(e, meeting.id, meeting.title)}
-                        disabled={deletingId === meeting.id}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors z-10"
-                        title="Delete meeting"
-                      >
-                        {deletingId === meeting.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </button>
-
-                      <span className="text-slate-500 group-hover:text-accent-400 transition-colors flex items-center gap-0.5 font-medium ml-1">
-                        View
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-    </div>
+      {/* ── FOOTER ──────────────────────────────────────────────────────── */}
+      <Footer />
+    </AppShell>
   );
 }
