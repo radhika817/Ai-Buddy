@@ -426,17 +426,17 @@ export default function Tasks() {
         {/* Task Rows Card */}
         <div>
           {loading ? (
-            /* Flat Skeleton Loader */
+            /* Flat Skeleton Loader (Opacity pulsing between two solid tints, no shimmer) */
             <div className="bg-white rounded-[16px] border border-hairline divide-y divide-hairline">
               {[1, 2, 3, 4].map((n) => (
                 <div key={n} className="p-4 px-6 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3.5 flex-1">
-                    <div className="w-5 h-5 rounded-[6px] bg-frame border border-hairline animate-pulse shrink-0" />
-                    <div className="h-4 w-2/3 bg-frame rounded animate-pulse" />
+                    <div className="w-5 h-5 rounded-[6px] bg-hairline/60 border border-hairline animate-flat-pulse shrink-0" />
+                    <div className="h-4 w-2/3 bg-hairline/60 rounded animate-flat-pulse" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="h-6 w-20 rounded-pill bg-frame animate-pulse" />
-                    <div className="h-4 w-16 rounded bg-frame animate-pulse" />
+                    <div className="h-6 w-20 rounded-pill bg-hairline/60 animate-flat-pulse" />
+                    <div className="h-4 w-16 rounded bg-hairline/60 animate-flat-pulse" />
                   </div>
                 </div>
               ))}
@@ -465,7 +465,7 @@ export default function Tasks() {
               </div>
             </div>
           ) : (
-            /* White Card with Task Rows */
+            /* White Card with Task Rows (Re-orders with short layout animation) */
             <div className="bg-white rounded-[16px] border border-hairline overflow-hidden divide-y divide-hairline shadow-none">
               {tasks.map((task) => {
                 const isDone = task.status === 'done';
@@ -474,27 +474,34 @@ export default function Tasks() {
                 const speakerTint = task.assigned_to ? getSpeakerTint(task.assigned_to) : 'bg-frame';
 
                 return (
-                  <div
+                  <motion.div
+                    layout
                     key={task.id}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
                     className="p-4 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-frame/50 transition-colors"
                   >
                     {/* Left: Checkbox & Task Title */}
                     <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
-                      <input
-                        id={`task-${task.id}`}
-                        type="checkbox"
-                        checked={isDone}
-                        onChange={() => handleToggleTaskStatus(task.id, task.status)}
-                        className="mt-0.5 sm:mt-0 w-5 h-5 rounded-[6px] border-[1.5px] border-hairline text-ink focus:ring-0 cursor-pointer shrink-0"
-                      />
-                      <label
-                        htmlFor={`task-${task.id}`}
-                        className={`font-sans text-sm sm:text-base leading-snug cursor-pointer select-none truncate ${
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={isDone}
+                        onClick={() => handleToggleTaskStatus(task.id, task.status)}
+                        className={`mt-0.5 sm:mt-0 w-5 h-5 rounded-[6px] border-[1.5px] flex items-center justify-center shrink-0 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
+                          isDone ? 'bg-ink border-ink' : 'bg-transparent border-hairline hover:border-ink'
+                        }`}
+                        aria-label={`Mark task "${task.task}" as ${isDone ? 'pending' : 'done'}`}
+                      >
+                        <AnimatedCheckmark checked={isDone} />
+                      </button>
+                      <span
+                        onClick={() => handleToggleTaskStatus(task.id, task.status)}
+                        className={`font-sans text-sm sm:text-base leading-snug cursor-pointer select-none truncate transition-colors duration-200 ${
                           isDone ? 'line-through text-muted' : 'text-ink font-medium'
                         }`}
                       >
                         {task.task}
-                      </label>
+                      </span>
                     </div>
 
                     {/* Right: Assignee Chip, Deadline, Overdue Badge, Meeting Link */}
@@ -525,7 +532,7 @@ export default function Tasks() {
                         {task.meeting_title} →
                       </Link>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
