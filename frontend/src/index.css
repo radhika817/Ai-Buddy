@@ -29,3 +29,17 @@ input:focus, textarea:focus, select:focus {
     transform: none !important;
   }
 }
+
+/* Flat skeleton loader: strictly opacity only between two solid tints */
+@keyframes flat-pulse {
+  0%, 100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.animate-flat-pulse {
+  animation: flat-pulse 1.4s ease-in-out infinite;
+}
