@@ -18,6 +18,7 @@ class MeetingOut(BaseModel):
     error_message: Optional[str] = None
     indexed: bool = False
     created_at: datetime
+    duration_seconds: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
 

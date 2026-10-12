@@ -15,6 +15,7 @@ from fastapi import (
     Body,
     Response,
 )
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -155,13 +156,24 @@ def get_user_meetings(
 ):
     """
     Returns only the logged-in user's meetings, sorted newest first.
+    Includes duration_seconds computed from the end time of the last transcript segment.
     """
-    return (
-        db.query(Meeting)
+    results = (
+        db.query(
+            Meeting,
+            func.max(TranscriptSegment.end_time).label("max_end_time"),
+        )
+        .outerjoin(TranscriptSegment, Meeting.id == TranscriptSegment.meeting_id)
         .filter(Meeting.user_id == current_user.id)
+        .group_by(Meeting.id)
         .order_by(Meeting.created_at.desc())
         .all()
     )
+    meetings = []
+    for m, max_end_time in results:
+        m.duration_seconds = round(max_end_time, 2) if max_end_time is not None else None
+        meetings.append(m)
+    return meetings
 
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
@@ -180,6 +192,12 @@ def get_meeting(
             detail="Meeting not found.",
         )
 
+    max_end_time = (
+        db.query(func.max(TranscriptSegment.end_time))
+        .filter(TranscriptSegment.meeting_id == meeting.id)
+        .scalar()
+    )
+    meeting.duration_seconds = round(max_end_time, 2) if max_end_time is not None else None
     return meeting
 
 

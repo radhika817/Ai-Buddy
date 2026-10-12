@@ -43,3 +43,15 @@ class Meeting(Base):
         cascade="all, delete-orphan",
         order_by="Decision.id",
     )
+
+    @property
+    def duration_seconds(self):
+        if hasattr(self, "_duration_seconds"):
+            return self._duration_seconds
+        if self.transcript_segments:
+            return max((seg.end_time for seg in self.transcript_segments), default=None)
+        return None
+
+    @duration_seconds.setter
+    def duration_seconds(self, value):
+        self._duration_seconds = value
