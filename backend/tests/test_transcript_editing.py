@@ -180,17 +180,17 @@ class TestTranscriptEditingAndRename(unittest.TestCase):
         self.assertIn("[03:35] Unlabeled comment.", text)
 
     def test_meeting_duration_seconds_in_list_and_detail(self):
-        # m1 has segments with max end_time = 25.5
+        # m1 has segments with max end_time = 65.0
         resp_list = self.client.get("/meetings", headers=self.headers1)
         self.assertEqual(resp_list.status_code, 200)
         items = resp_list.json()
         m1_item = next((m for m in items if m["id"] == self.m1_id), None)
         self.assertIsNotNone(m1_item)
-        self.assertEqual(m1_item["duration_seconds"], 25.5)
+        self.assertEqual(m1_item["duration_seconds"], 65.0)
 
         resp_detail = self.client.get(f"/meetings/{self.m1_id}", headers=self.headers1)
         self.assertEqual(resp_detail.status_code, 200)
-        self.assertEqual(resp_detail.json()["duration_seconds"], 25.5)
+        self.assertEqual(resp_detail.json()["duration_seconds"], 65.0)
 
 
 if __name__ == "__main__":

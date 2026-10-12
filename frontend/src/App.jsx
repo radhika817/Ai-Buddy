@@ -94,16 +94,18 @@ function AppLayout() {
   const location = useLocation();
   const token = localStorage.getItem('token');
   const isLanding = location.pathname === '/' && !token;
+  const isDashboard = location.pathname === '/dashboard';
+  const isDesignSystemPage = isLanding || isDashboard;
 
   return (
     <div
       className={`min-h-screen flex flex-col ${
-        isLanding
+        isDesignSystemPage
           ? 'bg-canvas text-ink'
           : 'bg-background text-slate-100 selection:bg-accent-500/20 selection:text-accent-300'
       }`}
     >
-      {!isLanding && <Navbar />}
+      {!isDesignSystemPage && <Navbar />}
       <main className="flex-1 flex flex-col">
         <AnimatedRoutes />
       </main>
