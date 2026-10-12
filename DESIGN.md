@@ -141,8 +141,9 @@ The layout adheres to a strict 4px/8px modular rhythm:
 - **Dashboard Search Pill**: Max width `320px` (`sm:w-80`).
 
 ### 3.5 Elevation & Depth Rule: Flat Planar Integrity
-- **NO SHADOWS**: `box-shadow: none !important;` throughout the interface.
+- **NO SHADOWS ANYWHERE**: `box-shadow: none !important;` throughout the entire interface, including product preview cards and popovers.
 - **NO GRADIENTS**: Every background and surface must be a flat, solid hex fill.
+- **NO DECORATIVE CURVED LINES**: No background SVG curves, sweeps, or decorative flourishes for now.
 - **NO FROSTED GLASS / BLUR**: Do not use `backdrop-filter: blur()`.
 - Hierarchy is achieved exclusively through planar contrast (e.g. `#CFDCE5` backdrop → `#F6F5F3` frame → `#FFFFFF` cards → `#DDD9F0` lavender callouts) bounded by crisp `#DEDAD6` hairlines.
 
@@ -155,6 +156,8 @@ The layout adheres to a strict 4px/8px modular rhythm:
 - **Brand Wordmark**: Left-aligned, "AI Buddy" in Inter Extrabold 24px (`#1D1618`), optionally paired with a 28×28px minimal geometric black mark (`w-7 h-7 bg-[#1D1618] rounded flex items-center justify-center`).
 - **Center Navigation**:
   - Cluster of pill links with `8px` gap.
+  - **Landing Page Navigation**: Contains only `How it works` and `Features`. No "Demo" link.
+  - **App Navigation**: `Meetings` (active on Dashboard/Detail), `Tasks`, `Ask AI`.
   - **Active Pill**: `px-4 py-1.5 rounded-full bg-[#1D1618] text-[#F6F5F3] font-body-sm font-medium`.
   - **Inactive Link**: `px-4 py-1.5 rounded-full text-[#6A6468] font-body-sm font-medium hover:text-[#1D1618] transition-colors`.
 - **Trailing Action**: Outlined pill button ("Log in" or "Log out").
