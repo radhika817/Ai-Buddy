@@ -95,7 +95,8 @@ function AppLayout() {
   const token = localStorage.getItem('token');
   const isLanding = location.pathname === '/' && !token;
   const isDashboard = location.pathname === '/dashboard';
-  const isDesignSystemPage = isLanding || isDashboard;
+  const isMeetingDetail = location.pathname.startsWith('/meetings/');
+  const isDesignSystemPage = isLanding || isDashboard || isMeetingDetail;
 
   return (
     <div

@@ -20,6 +20,10 @@ export default function Chip({
   const variantStyles = {
     lavender: 'bg-lavender text-ink border-hairline',
     blue: 'bg-chip-blue text-ink border-hairline',
+    sage: 'bg-chip-sage text-ink border-hairline',
+    sand: 'bg-chip-sand text-ink border-hairline',
+    rose: 'bg-chip-rose text-ink border-hairline',
+    mist: 'bg-chip-mist text-ink border-hairline',
     frame: 'bg-frame text-ink border-hairline',
   };
 
