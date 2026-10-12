@@ -38,6 +38,10 @@ All status indicators use a single canonical palette with a desaturated semantic
 | Component Token | Hex Value | Usage |
 |---|---|---|
 | **Secondary Chip Blue** | `#D9E3ED` | Alternating speaker/assignee pill chip (e.g., Atharva). |
+| **Pastel Sage Chip** | `#E2EAE3` | Additional muted speaker/assignee chip tint (calm mineral sage). |
+| **Pastel Sand Chip** | `#F5EEDB` | Additional muted speaker/assignee chip tint (warm muted sand). |
+| **Pastel Rose Chip** | `#F5E5E2` | Additional muted speaker/assignee chip tint (dusty mineral rose). |
+| **Pastel Mist Chip** | `#E3E7EB` | Additional muted speaker/assignee chip tint (cool neutral mist). |
 | **AI Assistant Chat Bubble** | `#EDE9F7` | Soft lavender tint for AI assistant conversational responses. |
 | **Table Row Active/Hover** | `#FAF9F7` / `#F7F6F3` | Subtle warm tint on table row hover or selected item. |
 

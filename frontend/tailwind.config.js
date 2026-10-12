@@ -57,6 +57,10 @@ export default {
 
         // Complementary functional tints
         'chip-blue': '#D9E3ED',
+        'chip-sage': '#E2EAE3',
+        'chip-sand': '#F5EEDB',
+        'chip-rose': '#F5E5E2',
+        'chip-mist': '#E3E7EB',
         'chat-bubble-ai': '#EDE9F7',
 
         // Backward compatibility for existing pages until rebuilt
