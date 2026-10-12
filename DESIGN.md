@@ -24,14 +24,14 @@ The palette is built upon planar layering of matte surfaces, warm mineral ink, a
 
 ### 1.2 Semantic Status Colors
 
-All status indicators use a desaturated semantic hue paired with a faint tinted background plane:
+All status indicators use a single canonical palette with a desaturated semantic hue paired with a faint tinted background plane:
 
-| Status | Text / Indicator Hex | Background Tint Hex | Usage |
+| Status | Text Hex | Background Tint Hex | Usage |
 |---|---|---|---|
-| **Success / Ready** | `#2C5E40` (or `#4C8A66`) | `#E6F3EB` (or `#E3EFE7`) | "Ready" status badge, completed indicators, privacy assurance dot. |
-| **Warning / Pending** | `#BE8A2E` | `#FAF4E8` (or `#F9F3EA`) | Warning banners, unresolved items, caution states. |
-| **Danger / Failed** | `#9A2D22` (or `#B5483A`) | `#FBEAE8` | "Failed" status badge, error validation states. |
-| **Info / Analyzing** | `#2E5580` (or `#4A6FA0`) | `#E8F0F8` | "Analyzing", "Transcribing", or "Processing" status badges. |
+| **Ready** | `#2C5E40` | `#E6F3EB` | "Ready" status badge, completed indicators, privacy assurance dot. |
+| **Analyzing** | `#2E5580` | `#E8F0F8` | "Analyzing", "Transcribing", or "Processing" status badges. |
+| **Failed** | `#9A2D22` | `#FBEAE8` | "Failed" status badge, error validation states. Shows a "Delete" action (no "Retry"). |
+| **Warning / Pending** | `#BE8A2E` | `#FAF4E8` | Warning notices, pending caution states. |
 
 ### 1.3 Complementary Component Tints
 
@@ -80,17 +80,19 @@ Headlines in hero treatments must pair an authoritative heavy grotesque word wit
 - **Dashboard**: `YOUR` (`Inter 800 Extrabold`) + `MEETINGS` (`Inter 300 Light Italic`).
 
 ### 2.4 Monospace Discipline Rule
-`JetBrains Mono` is **NEVER** to be used for general labels, headings, or decorative conversational body text.
+`JetBrains Mono` is used **ONLY** for timestamps, dates, durations, and status badges.
 - **Allowed Uses**:
-  - Time codes: `02:31`, `02:44`, `23:41`
+  - Timestamps: `02:31`, `02:44`, `23:41`
   - Dates: `8 Oct 2026`, `29 Sep 2026`
   - Durations: `42:10`, `18:35`, `1:03:22`
-  - Metric counters: `6`, `4`, `11`
   - Status badges: `Ready`, `Analyzing`, `Failed`
-  - Table header labels: `TITLE`, `DATE`, `DURATION`, `STATUS`
+  - Numerical metric counters: `6`, `4`, `11`
   - Citation tags: `Sprint review, 02:42`
-- **Forbidden Uses**:
-  - Paragraph copy, speaker names, button labels, and decorative index markers.
+  - Table column header labels: `TITLE`, `DATE`, `DURATION`, `STATUS`
+- **Forbidden Uses (Use DM Sans instead)**:
+  - Labels such as "Action items", "Speakers", "Suggested", "Contextual", "Logged Decision"
+  - Speaker names and assignee names (`Radhika`, `Atharva`, etc.)
+  - Paragraph copy, button labels, and decorative index markers
 
 ---
 
