@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { AppShell, TopBar, Button, Badge, Chip, Footer } from '../components/ui';
 
 export default function LandingPage() {
@@ -44,16 +45,46 @@ export default function LandingPage() {
 
       {/* ── HERO CONTAINER ──────────────────────────────────────────────── */}
       <div className="w-full pt-12 sm:pt-16 pb-12 px-6 lg:px-10 flex flex-col">
-        {/* Contrast Dynamic Headline: Bold Grotesque + Light Whisper Italic */}
-        <h1 className="text-ink tracking-tighter uppercase leading-[0.95] text-[40px] sm:text-[68px] lg:text-[88px] font-extrabold max-w-6xl mb-8 sm:mb-12 font-display">
-          TURN MEETINGS INTO{' '}
-          <span className="font-light italic tracking-tight lowercase sm:normal-case font-display">
+        {/* Contrast Dynamic Headline: Bold Grotesque + Light Whisper Italic (Word-by-word reveal) */}
+        <h1 className="text-ink tracking-tighter uppercase leading-[0.95] text-[40px] sm:text-[68px] lg:text-[88px] font-extrabold max-w-6xl mb-8 sm:mb-12 font-display flex flex-wrap gap-x-3 sm:gap-x-5">
+          <motion.span
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut', delay: 0.0 }}
+          >
+            TURN
+          </motion.span>
+          <motion.span
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut', delay: 0.08 }}
+          >
+            MEETINGS
+          </motion.span>
+          <motion.span
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut', delay: 0.16 }}
+          >
+            INTO
+          </motion.span>
+          <motion.span
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.26 }}
+            className="font-light italic tracking-tight lowercase sm:normal-case font-display"
+          >
             action
-          </span>
+          </motion.span>
         </h1>
 
-        {/* Hero Lavender Accent Panel (Strict flat #DDD9F0, no gradients, no curved lines) */}
-        <div className="relative bg-lavender border border-hairline rounded-panel lg:rounded-frame overflow-hidden p-0 shadow-none">
+        {/* Hero Lavender Accent Panel (Strict flat #DDD9F0, fades in after headline) */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut', delay: 0.35 }}
+          className="relative bg-lavender border border-hairline rounded-panel lg:rounded-frame overflow-hidden p-0 shadow-none"
+        >
           <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
             {/* Left Column (~42% on desktop) */}
             <div className="lg:col-span-5 p-6 sm:p-10 lg:p-12 flex flex-col justify-between">
