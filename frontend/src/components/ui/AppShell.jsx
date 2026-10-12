@@ -1,4 +1,6 @@
 import React from 'react';
+import { motion } from 'framer-motion';
+import { pageTransition } from '../../lib/motion';
 
 /**
  * AppShell Component
@@ -8,6 +10,7 @@ import React from 'react';
  * - Centered artboard frame: max-w-[1440px] #F6F5F3 (frame), 1px solid #DEDAD6 (hairline)
  * - Corner radius: 28px on desktop (rounded-frame), 0px on mobile
  * - Flat planar depth: zero drop shadows (shadow-none)
+ * - Page entrance: gentle fade and 6px rise (200ms ease-out)
  */
 export default function AppShell({
   children,
@@ -18,11 +21,16 @@ export default function AppShell({
     <div
       className={`min-h-screen bg-canvas p-0 sm:p-6 lg:p-10 flex justify-center items-start text-ink antialiased selection:bg-ink selection:text-frame ${outerClassName}`}
     >
-      <main
+      <motion.main
+        variants={pageTransition}
+        initial="initial"
+        animate="animate"
+        exit="exit"
         className={`w-full max-w-[1440px] bg-frame border border-hairline rounded-none md:rounded-frame overflow-hidden flex flex-col min-h-screen relative shadow-none ${className}`}
       >
         {children}
-      </main>
+      </motion.main>
     </div>
   );
 }
+

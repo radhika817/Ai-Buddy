@@ -33,21 +33,21 @@ export default function Button({
   };
 
   const variantStyles = {
-    // Primary pill: #1D1618 background, #F6F5F3 text
+    // Primary pill: lifts 1px and dims slightly on hover, small press scale 0.98 on click
     primary:
-      'bg-ink hover:bg-black hover:-translate-y-0.5 text-frame border border-transparent',
-    // Outlined pill: 1px solid #1D1618, transparent bg
+      'bg-ink text-frame border border-transparent hover:-translate-y-[1px] hover:opacity-90 active:scale-[0.98]',
+    // Outlined pill: border darkens on hover
     outline:
-      'border border-ink bg-transparent text-ink hover:bg-ink/5',
-    // Hairline outlined pill: 1px solid #DEDAD6, hover to #1D1618
+      'border border-hairline bg-transparent text-ink hover:border-ink hover:bg-ink/5 active:scale-[0.98] transition-colors',
+    // Hairline outlined pill
     'outline-hairline':
-      'border border-hairline bg-transparent text-ink hover:border-ink hover:bg-ink/5',
+      'border border-hairline bg-transparent text-ink hover:border-ink hover:bg-ink/5 active:scale-[0.98] transition-colors',
     // Secondary alias for backward compatibility
     secondary:
-      'border border-hairline bg-transparent text-ink hover:border-ink hover:bg-ink/5',
+      'border border-hairline bg-transparent text-ink hover:border-ink hover:bg-ink/5 active:scale-[0.98] transition-colors',
     // Ghost: text with hover background
     ghost:
-      'bg-transparent text-muted hover:text-ink hover:bg-ink/5 border border-transparent',
+      'bg-transparent text-muted hover:text-ink hover:bg-ink/5 border border-transparent active:scale-[0.98] transition-colors',
   };
 
   const combinedClasses = `${baseStyles} ${sizeStyles[size] || sizeStyles.md} ${

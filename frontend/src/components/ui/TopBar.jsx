@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 /**
  * TopBar Component
@@ -8,7 +9,8 @@ import { Link } from 'react-router-dom';
  * - Height: 80px (h-20), sticky at top
  * - Background: #F6F5F3 (bg-frame), 1px solid #DEDAD6 bottom border (border-b border-hairline)
  * - Brand wordmark: geometric icon mark + "AI Buddy" in Inter Extrabold
- * - Center nav: active nav pills (#1D1618 fill) and inactive muted links
+ * - Center nav: active nav pills (#1D1618 fill) with shared layoutId sliding animation
+ * - Inactive links: text color transition with left-to-right growing underline on hover
  * - Trailing action: outlined pill button
  */
 export default function TopBar({
@@ -49,14 +51,39 @@ export default function TopBar({
 
         {/* Desktop Navigation Links */}
         {navLinks && navLinks.length > 0 && (
-          <nav aria-label="Primary Navigation" className="hidden md:flex items-center gap-2">
+          <nav aria-label="Primary Navigation" className="hidden md:flex items-center gap-1.5">
             {navLinks.map((link, idx) => {
               const isActive = Boolean(link.active);
               const isExternalOrAnchor = link.href?.startsWith('#') || link.href?.startsWith('http');
 
-              const linkClasses = isActive
-                ? 'px-4 py-1.5 rounded-pill bg-ink text-frame font-sans text-sm font-medium transition-transform active:scale-95 duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink'
-                : 'px-4 py-1.5 rounded-pill text-muted hover:text-ink font-sans text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink';
+              const content = (
+                <>
+                  {isActive && (
+                    <motion.span
+                      layoutId="activeNavPill"
+                      className="absolute inset-0 bg-ink rounded-pill -z-10 shadow-none"
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
+                  <span
+                    className={`relative z-10 transition-colors duration-150 ${
+                      isActive ? 'text-frame font-medium' : 'text-muted group-hover:text-ink font-medium'
+                    }`}
+                  >
+                    {link.label}
+                  </span>
+                  {!isActive && (
+                    <span
+                      className="absolute bottom-1 left-3.5 right-3.5 h-[1.5px] bg-ink scale-x-0 group-hover:scale-x-100 transition-transform duration-150 origin-left"
+                      aria-hidden="true"
+                    />
+                  )}
+                </>
+              );
+
+              const containerClasses = `relative group px-4 py-1.5 rounded-pill font-sans text-sm inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
+                isActive ? 'active:scale-95 transition-transform duration-150' : 'hover:text-ink'
+              }`;
 
               if (isExternalOrAnchor) {
                 return (
@@ -64,9 +91,9 @@ export default function TopBar({
                     key={link.label || idx}
                     href={link.href}
                     onClick={link.onClick}
-                    className={linkClasses}
+                    className={containerClasses}
                   >
-                    {link.label}
+                    {content}
                   </a>
                 );
               }
@@ -76,9 +103,9 @@ export default function TopBar({
                   key={link.label || idx}
                   to={link.href}
                   onClick={link.onClick}
-                  className={linkClasses}
+                  className={containerClasses}
                 >
-                  {link.label}
+                  {content}
                 </Link>
               );
             })}
@@ -115,46 +142,55 @@ export default function TopBar({
       </div>
 
       {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-hairline bg-frame px-6 py-4 flex flex-col gap-3">
-          {navLinks.map((link, idx) => {
-            const isExternalOrAnchor = link.href?.startsWith('#') || link.href?.startsWith('http');
-            const handler = (e) => {
-              if (link.onClick) link.onClick(e);
-              setMobileMenuOpen(false);
-            };
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="md:hidden border-t border-hairline bg-frame px-6 py-4 flex flex-col gap-3"
+          >
+            {navLinks.map((link, idx) => {
+              const isExternalOrAnchor = link.href?.startsWith('#') || link.href?.startsWith('http');
+              const handler = (e) => {
+                if (link.onClick) link.onClick(e);
+                setMobileMenuOpen(false);
+              };
 
-            if (isExternalOrAnchor) {
+              if (isExternalOrAnchor) {
+                return (
+                  <a
+                    key={link.label || idx}
+                    href={link.href}
+                    onClick={handler}
+                    className="py-2 text-sm font-medium text-ink hover:text-black"
+                  >
+                    {link.label}
+                  </a>
+                );
+              }
+
               return (
-                <a
+                <Link
                   key={link.label || idx}
-                  href={link.href}
+                  to={link.href}
                   onClick={handler}
                   className="py-2 text-sm font-medium text-ink hover:text-black"
                 >
                   {link.label}
-                </a>
+                </Link>
               );
-            }
-
-            return (
-              <Link
-                key={link.label || idx}
-                to={link.href}
-                onClick={handler}
-                className="py-2 text-sm font-medium text-ink hover:text-black"
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-          {action && (
-            <div className="pt-2 border-t border-hairline flex flex-col">
-              {action}
-            </div>
-          )}
-        </div>
-      )}
+            })}
+            {action && (
+              <div className="pt-2 border-t border-hairline flex flex-col">
+                {action}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
+
